@@ -6,8 +6,9 @@
 
 #define INVALID_ID (-1)
 
-#define RoldID uint64_t
-#define RoutineID uint64_t
+#define RoutineID unsigned long long
+#define RoldID unsigned long long
+
 enum RoutineType
 {
 	LOG = 0,
@@ -21,14 +22,14 @@ enum RoutineType
 	Max,
 };
 
-enum class MsgID
+enum MsgID
 {
-	Message_Invalid = -1,
-	Message_1 = 0,
-	Message_2,
-	Message_3,
-	Message_log,
-	Message_createscene,
+	MsgID_Message_Invalid = -1,
+	MsgID_Message_1 = 0,
+	MsgID_Message_2,
+	MsgID_Message_3,
+	MsgID_Message_log,
+	MsgID_Message_createscene,
 };
 
 void Log(const char* msg, ...);

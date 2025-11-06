@@ -75,38 +75,38 @@ POOL_DEFINE(Scene);
 
 struct Message
 {
-	virtual MsgID GetID() { return MsgID::Message_Invalid; }
+	virtual MsgID GetID() { return MsgID::MsgID_Message_Invalid; }
 };
 POOL_DEFINE(Message);
 
 
 struct Message_1 : public Message
 {
-	MsgID GetID() { return MsgID::Message_1; }
+	MsgID GetID() { return MsgID::MsgID_Message_1; }
 };
 POOL_DEFINE(Message_1);
 
 struct Message_2 : public Message
 {
-	MsgID GetID() { return MsgID::Message_2; }
+	MsgID GetID() { return MsgID::MsgID_Message_2; }
 };
 POOL_DEFINE(Message_2);
 
 struct Message_3 : public Message
 {
-	MsgID GetID() { return MsgID::Message_3; }
+	MsgID GetID() { return MsgID::MsgID_Message_3; }
 };
 POOL_DEFINE(Message_3);
 
 struct Message_log : public Message
 {
-	MsgID GetID() { return MsgID::Message_log; }
+	MsgID GetID() { return MsgID::MsgID_Message_log; }
 	char szLog[1024];
 };
 POOL_DEFINE(Message_log);
 
 struct Message_CreateScene :public Message
 {
-	MsgID GetID() { return MsgID::Message_1; }
+	MsgID GetID() { return MsgID::MsgID_Message_1; }
 };
 POOL_DEFINE(Message_CreateScene);

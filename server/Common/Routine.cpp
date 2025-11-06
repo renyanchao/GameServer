@@ -73,5 +73,5 @@ void Routine::MsgDefaultHandler(const MessagePtr& rMsgPtr)
 
 void Routine::RegisterHandlerInit()
 {
-	RegisterHandler(MsgID::Message_Invalid, std::bind(&Routine::MsgDefaultHandler, this, std::placeholders::_1));
+	RegisterHandler(MsgID::MsgID_Message_Invalid, std::bind(&Routine::MsgDefaultHandler, this, std::placeholders::_1));
 }

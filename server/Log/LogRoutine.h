@@ -20,7 +20,7 @@ public:
 
 	void RegisterHandlerInit()
 	{
-		RegisterHandler(MsgID::Message_log, std::bind(&LogRoutine::HandleMsg, this, std::placeholders::_1));
+		RegisterHandler(MsgID::MsgID_Message_log, std::bind(&LogRoutine::HandleMsg, this, std::placeholders::_1));
 	}
 
 };
