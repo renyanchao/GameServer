@@ -19,7 +19,7 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 #link_directories(${PROJECT_BINARY_DIR}/message/Debug)
 add_executable(server ${SRC_CPP_FILES} ${SRC_H_FILES})
 #target_link_libraries(server cjson libserverbase libprotobufd messagelib)
-
+target_link_libraries(server pthread)
 #add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/gateserver)
 #add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/gameserver)
 #add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/loginserver)

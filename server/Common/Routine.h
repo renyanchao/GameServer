@@ -60,7 +60,7 @@ private:
 	uint64_t m_elapsetime = 0;
 	uint64_t m_routineUID = 0;
 
-	std::unordered_map<MsgID, std::function<void(const MessagePtr)>> m_HandlerList;
+	std::unordered_map<int, std::function<void(const MessagePtr)>> m_HandlerList;
 
 	//NetManager m_NetManager;//every routine support net
 	bool m_IsServer = false;//

@@ -1,9 +1,9 @@
 #pragma once
 
-#define MAX_THREAD_NUM 64
+#define MAX_THREAD_NUM 24
 #define MAX_THREAD_LOCAL_POOL_SIZE 1024
 #define MAX_THREAD_TOTAL_POOL_SIZE (1024 * 64)
-
+#define THREAD_SLEEP_TIME_MS 10
 #define INVALID_ID (-1)
 
 #define RoutineID unsigned long long
