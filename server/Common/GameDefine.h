@@ -84,5 +84,5 @@ uint64_t GetCurrencyTime();
 	#define AssertEx(expr,msg) {if(!(expr)){__assertex__(__FILE__,__LINE__,__PRETTY_FUNCTION__,#expr,msg);}}
 #endif 
 
-void __assertex__(const CHAR* file, UINT line, const CHAR* func, const CHAR* expr, const CHAR* msg);
+void __assertex__(const char* file, int line, const char* func, const char* expr, const char* msg);
 

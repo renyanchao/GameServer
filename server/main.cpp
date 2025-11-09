@@ -6,6 +6,11 @@
 
 #include "Log/LogRoutine.h"
 #include "Scene/SceneRoutine.h"
+#include "Login/LoginRoutine.h"
+#include "Mail/MailRoutine.h"
+#include "DB/DBRoutine.h"
+#include "Redis/RedisRoutine.h"
+
 
 int main()
 {
@@ -14,10 +19,10 @@ int main()
 
 	g_RoutineManager.RegisterRoutine(std::make_shared<LogRoutine>());
 
-	//g_RoutineManager.RegisterRoutine(std::make_shared<LoginRoutine>());
+	g_RoutineManager.RegisterRoutine(std::make_shared<LoginRoutine>());
 	g_RoutineManager.RegisterRoutine(std::make_shared<SceneRoutine>());
-	//g_RoutineManager.RegisterRoutine(std::make_shared<MailRoutine>());
-	//g_RoutineManager.RegisterRoutine(std::make_shared<DBRoutine>());
-	//g_RoutineManager.RegisterRoutine(std::make_shared<RedisRoutine>());
+	g_RoutineManager.RegisterRoutine(std::make_shared<MailRoutine>());
+	g_RoutineManager.RegisterRoutine(std::make_shared<DBRoutine>());
+	g_RoutineManager.RegisterRoutine(std::make_shared<RedisRoutine>());
 	getchar();
 }

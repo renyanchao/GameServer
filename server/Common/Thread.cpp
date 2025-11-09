@@ -3,7 +3,6 @@
 
 void Thread::Start()
 {
-//	std::thread mt(TaskFunc, std::ref(*this));
 	std::thread mt([this] {while (true)this->Tick(); });
 	t = std::move(mt);
 	t.detach();
@@ -11,16 +10,16 @@ void Thread::Start()
 void Thread::AddTask(std::shared_ptr<Routine> r)
 {
 	std::lock_guard<std::mutex> lock(m_lock);
-	m_AddTaskList.push_back(r);
+	m_AddRoutineList.push_back(r);
 }
-void Thread::DelTask(RoutineID nID)
+void Thread::RemoveTask(RoutineID nID)
 {
-	std::lock_guard<std::mutex> lock(m_lock);
-	for (auto it = m_TaskList.begin(); it != m_TaskList.end(); it++)
+
+	for (auto it = m_TickTaskList.begin(); it != m_TickTaskList.end(); it++)
 	{
 		if (nID == (*it)->GetRoutineID())
 		{
-			m_TaskList.erase(it);
+			m_TickTaskList.erase(it);
 			return;
 		}
 	}
@@ -29,9 +28,8 @@ void Thread::Tick()
 {
 	{
 		std::lock_guard<std::mutex> lock(m_lock);
-		m_TaskList.insert(m_TaskList.end(), std::make_move_iterator(m_AddTaskList.begin()), std::make_move_iterator(m_AddTaskList.end()));
-		m_AddTaskList.clear();
-
+		m_TickTaskList.insert(m_TickTaskList.end(), std::make_move_iterator(m_AddRoutineList.begin()), std::make_move_iterator(m_AddRoutineList.end()));
+		m_AddRoutineList.clear();
 	}
 	
 
@@ -42,7 +40,7 @@ void Thread::Tick()
 	m_nCurrencyTime = elpasetimeInfo.m_nCurrencyTime;
 
 	std::list<std::shared_ptr<Routine>> dielist;
-	for (auto& r : m_TaskList)
+	for (auto& r : m_TickTaskList)
 	{
 		try
 		{
@@ -58,14 +56,7 @@ void Thread::Tick()
 	}
 	for (auto& r : dielist)
 	{
-		for (auto it = m_TaskList.begin(); it != m_TaskList.end(); it++)
-		{
-			if ((*it)->GetRoutineID() == r->GetRoutineID())
-			{
-				m_TaskList.erase(it);
-				break;
-			}
-		}
+		RemoveTask(r->GetRoutineID());
 	}
 	if (THREAD_SLEEP_TIME_MS > 0)
 		sleep_ms(THREAD_SLEEP_TIME_MS);
