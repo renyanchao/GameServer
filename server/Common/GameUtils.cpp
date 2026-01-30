@@ -13,6 +13,7 @@ void Log(const char* msg, ...)
 	vsnprintf(msgPtr->szLog, sizeof(msgPtr->szLog), msg, argptr);
 	va_end(argptr);
 	g_RoutineManager.SendMsg2RoutineType(RoutineType::LOG, msgPtr);
+
 }
 
 

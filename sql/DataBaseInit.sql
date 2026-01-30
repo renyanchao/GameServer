@@ -1,0 +1,9 @@
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    roleid VARCHAR(50) NOT NULL,
+    username VARCHAR(50) NOT NULL,
+    level int NOT NULL,
+    exp int NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

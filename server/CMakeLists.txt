@@ -8,6 +8,7 @@ include_directories(
 	${CMAKE_CURRENT_LIST_DIR}/Common
 #	${PROJECT_SOURCE_DIR}/message
 	${PROJECT_SOURCE_DIR}/tool/include
+	${CMAKE_CURRENT_LIST_DIR}/Public
 )
 file(GLOB_RECURSE SRC_H_FILES ${CMAKE_CURRENT_LIST_DIR}/*.h)
 file(GLOB_RECURSE SRC_CPP_FILES ${CMAKE_CURRENT_LIST_DIR}/*.cpp)
@@ -15,12 +16,13 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 
 #link_directories(${PROJECT_SOURCE_DIR}/tool)
 #link_directories(${PROJECT_BINARY_DIR}/lib/Debug)
-#link_directories(${PROJECT_BINARY_DIR}/tool)
+link_directories(${PROJECT_SOURCE_DIR}/tool)
 #link_directories(${PROJECT_BINARY_DIR}/message/Debug)
+link_directories(/usr/lib64/mysql)
 add_executable(server ${SRC_CPP_FILES} ${SRC_H_FILES})
 #target_link_libraries(server cjson libserverbase libprotobufd messagelib)
 if(UNIX)
-	target_link_libraries(server pthread)
+	target_link_libraries(server pthread mysqlclient protobuf)
 endif()
 #add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/gateserver)
 #add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/gameserver)

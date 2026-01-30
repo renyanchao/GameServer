@@ -26,6 +26,7 @@ void Thread::RemoveTask(RoutineID nID)
 }
 void Thread::Tick()
 {
+	
 	{
 		std::lock_guard<std::mutex> lock(m_lock);
 		m_TickTaskList.insert(m_TickTaskList.end(), std::make_move_iterator(m_AddRoutineList.begin()), std::make_move_iterator(m_AddRoutineList.end()));

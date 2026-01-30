@@ -10,8 +10,11 @@ public:
 	{
 		return RoutineType::LOGIN;
 	}
-
-	void HeartBeat(int32_t nMillisecond);
+	void OnInit()
+	{
+		m_NetModuel.Listen();
+	}
+	virtual void HeartBeat(const TimeElpaseInfo& info);
 
 private:
 	//所有角色所在Routine

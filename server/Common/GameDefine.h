@@ -1,6 +1,6 @@
 #pragma once
 
-#define MAX_THREAD_NUM 24
+#define MAX_THREAD_NUM 32
 #define MAX_THREAD_LOCAL_POOL_SIZE 1024
 #define MAX_THREAD_TOTAL_POOL_SIZE (1024 * 64)
 #define THREAD_SLEEP_TIME_MS 10
@@ -45,6 +45,7 @@ enum MsgID
 	MsgID_Message_3,
 	MsgID_Message_log,
 	MsgID_Message_createscene,
+	MsgID_Message_Transfer,
 };
 
 void Log(const char* msg, ...);

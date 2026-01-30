@@ -6,7 +6,7 @@
 #include<unordered_map>
 #include"GameDefine.h"
 #include"ObjType.h"
-
+#include"Net.h"
 
 class Routine
 {
@@ -22,16 +22,40 @@ public:
 	{
 		return INVALID_ID;
 	}
+	virtual void OnInit(){}
 	virtual void HeartBeat(const TimeElpaseInfo& info)
 	{
 
 	}
 	virtual void Tick(const TimeElpaseInfo& info);
 	virtual uint32_t GetLeftTime()const { return 0xFFFFFFFF; }
-	//Local Other Routine Push to me
-	void Push(MessagePtr ptr);
+	//Other Routine Push to me
+	void Push(MessagePtr ptr)
+	{
+		std::lock_guard<std::mutex> pushlock(m_Lock);
+		m_PushList.push_back(ptr);
+	}
 	//Self Pop
-	MessagePtr Pop();
+	MessagePtr Pop()
+	{
+		if (m_PopList.empty() == false)
+		{
+			auto p = m_PopList.front();
+			m_PopList.pop_front();
+			return p;
+		}
+		{
+			std::lock_guard<std::mutex> pushlock(m_Lock);
+			m_PopList.swap(m_PushList);
+		}
+		if (m_PopList.empty() == false)
+		{
+			auto p = m_PopList.front();
+			m_PopList.pop_front();
+			return p;
+		}
+		return nullptr;
+	}
 
 	//void RemotePush(MessagePtr ptr)
 	//{
@@ -49,6 +73,11 @@ public:
 
 	uint64_t GetRoutineID()const { return m_routineUID; }
 	void	 SetRoutineID(uint64_t routineID) { m_routineUID = routineID; }
+
+	
+
+protected:
+	NetManager m_NetModuel;
 private:
 
 	std::list<MessagePtr> m_PushList;

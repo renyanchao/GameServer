@@ -14,7 +14,7 @@ public:
 
 	bool SendMsg2Routine(RoutineID nID, const MessagePtr& message);
 	bool SendMsg2RoutineType(RoutineType nType, const MessagePtr& message);
-	void RegisterRoutine(std::shared_ptr<Routine> r);
+	uint64_t RegisterRoutine(std::shared_ptr<Routine> r);
 	//void UnRegisterRoutine(std::shared_ptr<Routine> r);
 
 private:

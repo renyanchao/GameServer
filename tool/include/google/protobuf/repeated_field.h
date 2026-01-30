@@ -46,7 +46,6 @@
 #ifndef GOOGLE_PROTOBUF_REPEATED_FIELD_H__
 #define GOOGLE_PROTOBUF_REPEATED_FIELD_H__
 
-#include <utility>
 #ifdef _MSC_VER
 // This is required for min/max on VS2013 only.
 #include <algorithm>
@@ -55,35 +54,27 @@
 #include <iterator>
 #include <limits>
 #include <string>
-#include <type_traits>
+#include <google/protobuf/stubs/casts.h>
 #include <google/protobuf/stubs/logging.h>
 #include <google/protobuf/stubs/common.h>
 #include <google/protobuf/arena.h>
 #include <google/protobuf/implicit_weak_message.h>
 #include <google/protobuf/message_lite.h>
-#include <google/protobuf/port.h>
-#include <google/protobuf/stubs/casts.h>
+#include <google/protobuf/stubs/port.h>
 #include <type_traits>
 
 
-#include <google/protobuf/port_def.inc>
-
-#ifdef SWIG
-#error "You cannot SWIG proto headers"
-#endif
-
 // Forward-declare these so that we can make them friends.
+namespace google {
 namespace upb {
 namespace google_opensource {
 class GMR_Handlers;
 }  // namespace google_opensource
 }  // namespace upb
 
-namespace google {
 namespace protobuf {
 
 class Message;
-class Reflection;
 
 namespace internal {
 
@@ -112,16 +103,13 @@ inline int CalculateReserve(Iter begin, Iter end) {
 }
 }  // namespace internal
 
+
 // RepeatedField is used to represent repeated fields of a primitive type (in
 // other words, everything except strings and nested Messages).  Most users will
 // not ever use a RepeatedField directly; they will use the get-by-index,
 // set-by-index, and add accessors that are generated for all repeated fields.
 template <typename Element>
 class RepeatedField final {
-  static_assert(
-      alignof(Arena) >= alignof(Element),
-      "We only support types that have an alignment smaller than Arena");
-
  public:
   RepeatedField();
   explicit RepeatedField(Arena* arena);
@@ -144,19 +132,11 @@ class RepeatedField final {
   const Element& operator[](int index) const { return Get(index); }
   Element& operator[](int index) { return *Mutable(index); }
 
-  const Element& at(int index) const;
-  Element& at(int index);
-
   void Set(int index, const Element& value);
   void Add(const Element& value);
   // Appends a new element and return a pointer to it.
   // The new element is uninitialized if |Element| is a POD type.
   Element* Add();
-  // Append elements in the range [begin, end) after reserving
-  // the appropriate number of elements.
-  template <typename Iter>
-  void Add(Iter begin, Iter end);
-
   // Remove the last element in the array.
   void RemoveLast();
 
@@ -229,11 +209,15 @@ class RepeatedField final {
   // Reverse iterator support
   typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
   typedef std::reverse_iterator<iterator> reverse_iterator;
-  reverse_iterator rbegin() { return reverse_iterator(end()); }
+  reverse_iterator rbegin() {
+    return reverse_iterator(end());
+  }
   const_reverse_iterator rbegin() const {
     return const_reverse_iterator(end());
   }
-  reverse_iterator rend() { return reverse_iterator(begin()); }
+  reverse_iterator rend() {
+    return reverse_iterator(begin());
+  }
   const_reverse_iterator rend() const {
     return const_reverse_iterator(begin());
   }
@@ -262,7 +246,9 @@ class RepeatedField final {
   iterator erase(const_iterator first, const_iterator last);
 
   // Get the Arena on which this RepeatedField stores its elements.
-  Arena* GetArena() const { return GetArenaNoVirtual(); }
+  ::google::protobuf::Arena* GetArena() const {
+    return GetArenaNoVirtual();
+  }
 
   // For internal use only.
   //
@@ -293,31 +279,17 @@ class RepeatedField final {
   // Element is double and pointer is 32bit).
   static const size_t kRepHeaderSize;
 
-  // If total_size_ == 0 this points to an Arena otherwise it points to the
-  // elements member of a Rep struct. Using this invariant allows the storage of
-  // the arena pointer without an extra allocation in the constructor.
-  void* arena_or_elements_;
+  // We reuse the Rep* for an Arena* when total_size == 0, to avoid having to do
+  // an allocation in the constructor when we have an Arena.
+  union Pointer {
+    Pointer(Arena* a) : arena(a) {}
+    Arena* arena;   // When total_size_ == 0.
+    Rep* rep;       // When total_size_ != 0.
+  } ptr_;
 
-  // Return pointer to elements array.
-  // pre-condition: the array must have been allocated.
-  Element* elements() const {
-    GOOGLE_DCHECK_GT(total_size_, 0);
-    // Because of above pre-condition this cast is safe.
-    return unsafe_elements();
-  }
-
-  // Return pointer to elements array if it exists otherwise either null or
-  // a invalid pointer is returned. This only happens for empty repeated fields,
-  // where you can't dereference this pointer anyway (it's empty).
-  Element* unsafe_elements() const {
-    return static_cast<Element*>(arena_or_elements_);
-  }
-
-  // Return pointer to the Rep struct.
-  // pre-condition: the Rep must have been allocated, ie elements() is safe.
   Rep* rep() const {
-    char* addr = reinterpret_cast<char*>(elements()) - offsetof(Rep, elements);
-    return reinterpret_cast<Rep*>(addr);
+    GOOGLE_DCHECK_GT(total_size_, 0);
+    return ptr_.rep;
   }
 
   friend class Arena;
@@ -334,8 +306,7 @@ class RepeatedField final {
 
   // Internal helper expected by Arena methods.
   inline Arena* GetArenaNoVirtual() const {
-    return (total_size_ == 0) ? static_cast<Arena*>(arena_or_elements_)
-                              : rep()->arena;
+    return (total_size_ == 0) ? ptr_.arena : ptr_.rep->arena;
   }
 
   // Internal helper to delete all elements and deallocate the storage.
@@ -358,17 +329,18 @@ class RepeatedField final {
       }
     }
   }
+
+  friend class internal::WireFormatLite;
+  const Element* unsafe_data() const;
 };
 
-template <typename Element>
+template<typename Element>
 const size_t RepeatedField<Element>::kRepHeaderSize =
     reinterpret_cast<size_t>(&reinterpret_cast<Rep*>(16)->elements[0]) - 16;
 
 namespace internal {
-template <typename It>
-class RepeatedPtrIterator;
-template <typename It, typename VoidPtr>
-class RepeatedPtrOverPtrsIterator;
+template <typename It> class RepeatedPtrIterator;
+template <typename It, typename VoidPtr> class RepeatedPtrOverPtrsIterator;
 }  // namespace internal
 
 namespace internal {
@@ -392,7 +364,7 @@ namespace internal {
 // arena-related "copy if on different arena" behavior if the necessary methods
 // exist on the contained type. In particular, we rely on MergeFrom() existing
 // as a general proxy for the fact that a copy will work, and we also provide a
-// specific override for std::string*.
+// specific override for string*.
 template <typename T>
 struct TypeImplementsMergeBehaviorProbeForMergeFrom {
   typedef char HasMerge;
@@ -405,35 +377,28 @@ struct TypeImplementsMergeBehaviorProbeForMergeFrom {
   // We mangle these names a bit to avoid compatibility issues in 'unclean'
   // include environments that may have, e.g., "#define test ..." (yes, this
   // exists).
-  template <typename U, typename RetType, RetType (U::*)(const U& arg)>
-  struct CheckType;
-  template <typename U>
-  static HasMerge Check(CheckType<U, void, &U::MergeFrom>*);
-  template <typename U>
-  static HasMerge Check(CheckType<U, bool, &U::MergeFrom>*);
-  template <typename U>
-  static HasNoMerge Check(...);
+  template<typename U, typename RetType, RetType (U::*)(const U& arg)>
+      struct CheckType;
+  template<typename U> static HasMerge Check(
+      CheckType<U, void, &U::MergeFrom>*);
+  template<typename U> static HasMerge Check(
+      CheckType<U, bool, &U::MergeFrom>*);
+  template<typename U> static HasNoMerge Check(...);
 
   // Resolves to either std::true_type or std::false_type.
   typedef std::integral_constant<bool,
-                                 (sizeof(Check<T>(0)) == sizeof(HasMerge))>
-      type;
+               (sizeof(Check<T>(0)) == sizeof(HasMerge))> type;
 };
 
 template <typename T, typename = void>
-struct TypeImplementsMergeBehavior
-    : TypeImplementsMergeBehaviorProbeForMergeFrom<T> {};
+struct TypeImplementsMergeBehavior :
+    TypeImplementsMergeBehaviorProbeForMergeFrom<T> {};
 
 
 template <>
-struct TypeImplementsMergeBehavior<std::string> {
+struct TypeImplementsMergeBehavior< ::std::string> {
   typedef std::true_type type;
 };
-
-template <typename T>
-struct IsMovable
-    : std::integral_constant<bool, std::is_move_constructible<T>::value &&
-                                       std::is_move_assignable<T>::value> {};
 
 // This is the common base class for RepeatedPtrFields.  It deals only in void*
 // pointers.  Users should not use this interface directly.
@@ -448,7 +413,7 @@ struct IsMovable
 //     typedef MyType WeakType;
 //     static Type* New();
 //     static WeakType* NewFromPrototype(const WeakType* prototype,
-//                                       Arena* arena);
+//                                       ::google::protobuf::Arena* arena);
 //     static void Delete(Type*);
 //     static void Clear(Type*);
 //     static void Merge(const Type& from, Type* to);
@@ -456,10 +421,10 @@ struct IsMovable
 //     // Only needs to be implemented if SpaceUsedExcludingSelf() is called.
 //     static int SpaceUsedLong(const Type&);
 //   };
-class PROTOBUF_EXPORT RepeatedPtrFieldBase {
+class LIBPROTOBUF_EXPORT RepeatedPtrFieldBase {
  protected:
   RepeatedPtrFieldBase();
-  explicit RepeatedPtrFieldBase(Arena* arena);
+  explicit RepeatedPtrFieldBase(::google::protobuf::Arena* arena);
   ~RepeatedPtrFieldBase() {}
 
   // Must be called from destructor.
@@ -468,11 +433,6 @@ class PROTOBUF_EXPORT RepeatedPtrFieldBase {
 
   bool empty() const;
   int size() const;
-
-  template <typename TypeHandler>
-  const typename TypeHandler::Type& at(int index) const;
-  template <typename TypeHandler>
-  typename TypeHandler::Type& at(int index);
 
   template <typename TypeHandler>
   typename TypeHandler::Type* Mutable(int index);
@@ -493,7 +453,7 @@ class PROTOBUF_EXPORT RepeatedPtrFieldBase {
   // a link-time dependency on the concrete message type. This method is used to
   // implement implicit weak fields. The prototype may be NULL, in which case an
   // ImplicitWeakMessage will be used as a placeholder.
-  MessageLite* AddWeak(const MessageLite* prototype);
+  google::protobuf::MessageLite* AddWeak(const google::protobuf::MessageLite* prototype);
 
   template <typename TypeHandler>
   void Clear();
@@ -504,10 +464,9 @@ class PROTOBUF_EXPORT RepeatedPtrFieldBase {
   inline void InternalSwap(RepeatedPtrFieldBase* other);
 
  protected:
-  template <
-      typename TypeHandler,
-      typename std::enable_if<TypeHandler::Movable::value>::type* = nullptr>
-  void Add(typename TypeHandler::Type&& value);
+  template <typename TypeHandler>
+  void Add(typename TypeHandler::Type&& value,
+           std::enable_if<TypeHandler::Moveable>* dummy = NULL);
 
   template <typename TypeHandler>
   void RemoveLast();
@@ -529,8 +488,8 @@ class PROTOBUF_EXPORT RepeatedPtrFieldBase {
   template <typename TypeHandler>
   const typename TypeHandler::Type* const* data() const;
 
-  template <typename TypeHandler>
-  PROTOBUF_ALWAYS_INLINE void Swap(RepeatedPtrFieldBase* other);
+  template <typename TypeHandler> GOOGLE_PROTOBUF_ATTRIBUTE_ALWAYS_INLINE
+  void Swap(RepeatedPtrFieldBase* other);
 
   void SwapElements(int index1, int index2);
 
@@ -543,7 +502,7 @@ class PROTOBUF_EXPORT RepeatedPtrFieldBase {
   template <typename TypeHandler>
   typename TypeHandler::Type* AddFromCleared();
 
-  template <typename TypeHandler>
+  template<typename TypeHandler>
   void AddAllocated(typename TypeHandler::Type* value) {
     typename TypeImplementsMergeBehavior<typename TypeHandler::Type>::type t;
     AddAllocatedInternal<TypeHandler>(value, t);
@@ -574,22 +533,24 @@ class PROTOBUF_EXPORT RepeatedPtrFieldBase {
   template <typename TypeHandler>
   void AddAllocatedInternal(typename TypeHandler::Type* value, std::false_type);
 
-  template <typename TypeHandler>
-  PROTOBUF_NOINLINE void AddAllocatedSlowWithCopy(
-      typename TypeHandler::Type* value, Arena* value_arena, Arena* my_arena);
-  template <typename TypeHandler>
-  PROTOBUF_NOINLINE void AddAllocatedSlowWithoutCopy(
-      typename TypeHandler::Type* value);
+  template <typename TypeHandler> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE
+  void AddAllocatedSlowWithCopy(typename TypeHandler::Type* value,
+                                Arena* value_arena,
+                                Arena* my_arena);
+  template <typename TypeHandler> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE
+  void AddAllocatedSlowWithoutCopy(typename TypeHandler::Type* value);
 
   template <typename TypeHandler>
   typename TypeHandler::Type* ReleaseLastInternal(std::true_type);
   template <typename TypeHandler>
   typename TypeHandler::Type* ReleaseLastInternal(std::false_type);
 
-  template <typename TypeHandler>
-  PROTOBUF_NOINLINE void SwapFallback(RepeatedPtrFieldBase* other);
+  template<typename TypeHandler> GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE
+  void SwapFallback(RepeatedPtrFieldBase* other);
 
-  inline Arena* GetArenaNoVirtual() const { return arena_; }
+  inline Arena* GetArenaNoVirtual() const {
+    return arena_;
+  }
 
  private:
   static const int kInitialSize = 0;
@@ -605,11 +566,11 @@ class PROTOBUF_EXPORT RepeatedPtrFieldBase {
   // Placing all fields directly in the RepeatedPtrFieldBase instance costs
   // significant performance for memory-sensitive workloads.
   Arena* arena_;
-  int current_size_;
-  int total_size_;
+  int    current_size_;
+  int    total_size_;
   struct Rep {
-    int allocated_size;
-    void* elements[1];
+    int    allocated_size;
+    void*  elements[1];
   };
   static const size_t kRepHeaderSize = sizeof(Rep) - sizeof(void*);
   // Contains arena ptr and the elements array. We also keep the invariant that
@@ -627,14 +588,13 @@ class PROTOBUF_EXPORT RepeatedPtrFieldBase {
 
   // Non-templated inner function to avoid code duplication. Takes a function
   // pointer to the type-specific (templated) inner allocate/merge loop.
-  void MergeFromInternal(const RepeatedPtrFieldBase& other,
-                         void (RepeatedPtrFieldBase::*inner_loop)(void**,
-                                                                  void**, int,
-                                                                  int));
+  void MergeFromInternal(
+      const RepeatedPtrFieldBase& other,
+      void (RepeatedPtrFieldBase::*inner_loop)(void**, void**, int, int));
 
-  template <typename TypeHandler>
-  void MergeFromInnerLoop(void** our_elems, void** other_elems, int length,
-                          int already_allocated);
+  template<typename TypeHandler>
+  void MergeFromInnerLoop(
+      void** our_elems, void** other_elems, int length, int already_allocated);
 
   // Internal helper: extend array space if necessary to contain |extend_amount|
   // more elements, and return a pointer to the element immediately following
@@ -645,7 +605,7 @@ class PROTOBUF_EXPORT RepeatedPtrFieldBase {
   // The reflection implementation needs to call protected methods directly,
   // reinterpreting pointers as being to Message instead of a specific Message
   // subclass.
-  friend class ::PROTOBUF_NAMESPACE_ID::Reflection;
+  friend class GeneratedMessageReflection;
 
   // ExtensionSet stores repeated message extensions as
   // RepeatedPtrField<MessageLite>, but non-lite ExtensionSets need to implement
@@ -677,30 +637,27 @@ class GenericTypeHandler {
  public:
   typedef GenericType Type;
   typedef GenericType WeakType;
-  using Movable = IsMovable<GenericType>;
+  static const bool Moveable = false;
 
   static inline GenericType* New(Arena* arena) {
-    return Arena::CreateMaybeMessage<Type>(arena);
+    return ::google::protobuf::Arena::CreateMaybeMessage<Type>(arena);
   }
-  static inline GenericType* New(Arena* arena, GenericType&& value) {
-    return Arena::Create<GenericType>(arena, std::move(value));
-  }
-  static inline GenericType* NewFromPrototype(const GenericType* prototype,
-                                              Arena* arena = NULL);
+  static inline GenericType* NewFromPrototype(
+      const GenericType* prototype, ::google::protobuf::Arena* arena = NULL);
   static inline void Delete(GenericType* value, Arena* arena) {
     if (arena == NULL) {
       delete value;
     }
   }
-  static inline Arena* GetArena(GenericType* value) {
-    return Arena::GetArena<Type>(value);
+  static inline ::google::protobuf::Arena* GetArena(GenericType* value) {
+    return ::google::protobuf::Arena::GetArena<Type>(value);
   }
   static inline void* GetMaybeArenaPointer(GenericType* value) {
-    return Arena::GetArena<Type>(value);
+    return ::google::protobuf::Arena::GetArena<Type>(value);
   }
 
   static inline void Clear(GenericType* value) { value->Clear(); }
-  PROTOBUF_NOINLINE
+  GOOGLE_PROTOBUF_ATTRIBUTE_NOINLINE
   static void Merge(const GenericType& from, GenericType* to);
   static inline size_t SpaceUsedLong(const GenericType& value) {
     return value.SpaceUsedLong();
@@ -709,7 +666,7 @@ class GenericTypeHandler {
 
 template <typename GenericType>
 GenericType* GenericTypeHandler<GenericType>::NewFromPrototype(
-    const GenericType* /* prototype */, Arena* arena) {
+    const GenericType* /* prototype */, ::google::protobuf::Arena* arena) {
   return New(arena);
 }
 template <typename GenericType>
@@ -721,14 +678,15 @@ void GenericTypeHandler<GenericType>::Merge(const GenericType& from,
 // NewFromPrototype() and Merge() are not defined inline here, as we will need
 // to do a virtual function dispatch anyways to go from Message* to call
 // New/Merge.
-template <>
+template<>
 MessageLite* GenericTypeHandler<MessageLite>::NewFromPrototype(
-    const MessageLite* prototype, Arena* arena);
-template <>
-inline Arena* GenericTypeHandler<MessageLite>::GetArena(MessageLite* value) {
+    const MessageLite* prototype, google::protobuf::Arena* arena);
+template<>
+inline google::protobuf::Arena* GenericTypeHandler<MessageLite>::GetArena(
+    MessageLite* value) {
   return value->GetArena();
 }
-template <>
+template<>
 inline void* GenericTypeHandler<MessageLite>::GetMaybeArenaPointer(
     MessageLite* value) {
   return value->GetMaybeArenaPointer();
@@ -736,26 +694,26 @@ inline void* GenericTypeHandler<MessageLite>::GetMaybeArenaPointer(
 template <>
 void GenericTypeHandler<MessageLite>::Merge(const MessageLite& from,
                                             MessageLite* to);
-template <>
-inline void GenericTypeHandler<std::string>::Clear(std::string* value) {
+template<>
+inline void GenericTypeHandler<string>::Clear(string* value) {
   value->clear();
 }
-template <>
-void GenericTypeHandler<std::string>::Merge(const std::string& from,
-                                            std::string* to);
+template<>
+void GenericTypeHandler<string>::Merge(const string& from,
+                                       string* to);
 
 // Declarations of the specialization as we cannot define them here, as the
 // header that defines ProtocolMessage depends on types defined in this header.
-#define DECLARE_SPECIALIZATIONS_FOR_BASE_PROTO_TYPES(TypeName)              \
-  template <>                                                               \
-  PROTOBUF_EXPORT TypeName* GenericTypeHandler<TypeName>::NewFromPrototype( \
-      const TypeName* prototype, Arena* arena);                             \
-  template <>                                                               \
-  PROTOBUF_EXPORT Arena* GenericTypeHandler<TypeName>::GetArena(            \
-      TypeName* value);                                                     \
-  template <>                                                               \
-  PROTOBUF_EXPORT void* GenericTypeHandler<TypeName>::GetMaybeArenaPointer( \
-      TypeName* value);
+#define DECLARE_SPECIALIZATIONS_FOR_BASE_PROTO_TYPES(TypeName)                 \
+    template<>                                                                 \
+    TypeName* GenericTypeHandler<TypeName>::NewFromPrototype(                  \
+        const TypeName* prototype, google::protobuf::Arena* arena);                      \
+    template<>                                                                 \
+    google::protobuf::Arena* GenericTypeHandler<TypeName>::GetArena(                     \
+        TypeName* value);                                                      \
+    template<>                                                                 \
+    void* GenericTypeHandler<TypeName>::GetMaybeArenaPointer(                  \
+        TypeName* value);
 
 // Message specialization bodies defined in message.cc. This split is necessary
 // to allow proto2-lite (which includes this header) to be independent of
@@ -767,34 +725,35 @@ DECLARE_SPECIALIZATIONS_FOR_BASE_PROTO_TYPES(Message)
 
 class StringTypeHandler {
  public:
-  typedef std::string Type;
-  typedef std::string WeakType;
-  using Movable = IsMovable<Type>;
+  typedef string Type;
+  typedef string WeakType;
+  static const bool Moveable = std::is_move_constructible<Type>::value &&
+                               std::is_move_assignable<Type>::value;
 
-  static inline std::string* New(Arena* arena) {
-    return Arena::Create<std::string>(arena);
+  static inline string* New(Arena* arena) {
+    return Arena::Create<string>(arena);
   }
-  static inline std::string* New(Arena* arena, std::string&& value) {
-    return Arena::Create<std::string>(arena, std::move(value));
+  static inline string* New(Arena* arena, string&& value) {
+    return Arena::Create<string>(arena, std::move(value));
   }
-  static inline std::string* NewFromPrototype(const std::string*,
-                                              Arena* arena) {
+  static inline string* NewFromPrototype(const string*,
+                                         ::google::protobuf::Arena* arena) {
     return New(arena);
   }
-  static inline Arena* GetArena(std::string*) { return NULL; }
-  static inline void* GetMaybeArenaPointer(std::string* /* value */) {
+  static inline ::google::protobuf::Arena* GetArena(string*) {
     return NULL;
   }
-  static inline void Delete(std::string* value, Arena* arena) {
+  static inline void* GetMaybeArenaPointer(string* /* value */) {
+    return NULL;
+  }
+  static inline void Delete(string* value, Arena* arena) {
     if (arena == NULL) {
       delete value;
     }
   }
-  static inline void Clear(std::string* value) { value->clear(); }
-  static inline void Merge(const std::string& from, std::string* to) {
-    *to = from;
-  }
-  static size_t SpaceUsedLong(const std::string& value) {
+  static inline void Clear(string* value) { value->clear(); }
+  static inline void Merge(const string& from, string* to) { *to = from; }
+  static size_t SpaceUsedLong(const string& value)  {
     return sizeof(value) + StringSpaceUsedExcludingSelfLong(value);
   }
 };
@@ -807,7 +766,7 @@ template <typename Element>
 class RepeatedPtrField final : private internal::RepeatedPtrFieldBase {
  public:
   RepeatedPtrField();
-  explicit RepeatedPtrField(Arena* arena);
+  explicit RepeatedPtrField(::google::protobuf::Arena* arena);
 
   RepeatedPtrField(const RepeatedPtrField& other);
   template <typename Iter>
@@ -829,9 +788,6 @@ class RepeatedPtrField final : private internal::RepeatedPtrFieldBase {
 
   const Element& operator[](int index) const { return Get(index); }
   Element& operator[](int index) { return *Mutable(index); }
-
-  const Element& at(int index) const;
-  Element& at(int index);
 
   // Remove the last element in the array.
   // Ownership of the element is retained by the array.
@@ -892,11 +848,15 @@ class RepeatedPtrField final : private internal::RepeatedPtrFieldBase {
   // Reverse iterator support
   typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
   typedef std::reverse_iterator<iterator> reverse_iterator;
-  reverse_iterator rbegin() { return reverse_iterator(end()); }
+  reverse_iterator rbegin() {
+    return reverse_iterator(end());
+  }
   const_reverse_iterator rbegin() const {
     return const_reverse_iterator(end());
   }
-  reverse_iterator rend() { return reverse_iterator(begin()); }
+  reverse_iterator rend() {
+    return reverse_iterator(begin());
+  }
   const_reverse_iterator rend() const {
     return const_reverse_iterator(begin());
   }
@@ -1032,7 +992,9 @@ class RepeatedPtrField final : private internal::RepeatedPtrFieldBase {
   iterator erase(const_iterator first, const_iterator last);
 
   // Gets the arena on which this RepeatedPtrField stores its elements.
-  Arena* GetArena() const { return GetArenaNoVirtual(); }
+  ::google::protobuf::Arena* GetArena() const {
+    return GetArenaNoVirtual();
+  }
 
   // For internal use only.
   //
@@ -1066,15 +1028,23 @@ class RepeatedPtrField final : private internal::RepeatedPtrFieldBase {
 
 template <typename Element>
 inline RepeatedField<Element>::RepeatedField()
-    : current_size_(0), total_size_(0), arena_or_elements_(nullptr) {}
+  : current_size_(0),
+    total_size_(0),
+    ptr_(NULL) {
+}
 
 template <typename Element>
 inline RepeatedField<Element>::RepeatedField(Arena* arena)
-    : current_size_(0), total_size_(0), arena_or_elements_(arena) {}
+  : current_size_(0),
+    total_size_(0),
+    ptr_(arena) {
+}
 
 template <typename Element>
 inline RepeatedField<Element>::RepeatedField(const RepeatedField& other)
-    : current_size_(0), total_size_(0), arena_or_elements_(nullptr) {
+  : current_size_(0),
+    total_size_(0),
+    ptr_(NULL) {
   if (other.current_size_ != 0) {
     Reserve(other.size());
     AddNAlreadyReserved(other.size());
@@ -1085,8 +1055,20 @@ inline RepeatedField<Element>::RepeatedField(const RepeatedField& other)
 template <typename Element>
 template <typename Iter>
 RepeatedField<Element>::RepeatedField(Iter begin, const Iter& end)
-    : current_size_(0), total_size_(0), arena_or_elements_(nullptr) {
-  Add(begin, end);
+  : current_size_(0),
+    total_size_(0),
+    ptr_(NULL) {
+  int reserve = internal::CalculateReserve(begin, end);
+  if (reserve != -1) {
+    Reserve(reserve);
+    for (; begin != end; ++begin) {
+      AddAlreadyReserved(*begin);
+    }
+  } else {
+    for (; begin != end; ++begin) {
+      Add(*begin);
+    }
+  }
 }
 
 template <typename Element>
@@ -1097,9 +1079,10 @@ RepeatedField<Element>::~RepeatedField() {
 }
 
 template <typename Element>
-inline RepeatedField<Element>& RepeatedField<Element>::operator=(
-    const RepeatedField& other) {
-  if (this != &other) CopyFrom(other);
+inline RepeatedField<Element>&
+RepeatedField<Element>::operator=(const RepeatedField& other) {
+  if (this != &other)
+    CopyFrom(other);
   return *this;
 }
 
@@ -1107,8 +1090,7 @@ template <typename Element>
 inline RepeatedField<Element>::RepeatedField(RepeatedField&& other) noexcept
     : RepeatedField() {
   // We don't just call Swap(&other) here because it would perform 3 copies if
-  // other is on an arena. This field can't be on an arena because arena
-  // construction always uses the Arena* accepting constructor.
+  // the two fields are on different arenas.
   if (other.GetArenaNoVirtual()) {
     CopyFrom(other);
   } else {
@@ -1146,37 +1128,35 @@ inline int RepeatedField<Element>::Capacity() const {
   return total_size_;
 }
 
-template <typename Element>
+template<typename Element>
 inline void RepeatedField<Element>::AddAlreadyReserved(const Element& value) {
   GOOGLE_DCHECK_LT(current_size_, total_size_);
-  elements()[current_size_++] = value;
+  rep()->elements[current_size_++] = value;
 }
 
-template <typename Element>
+template<typename Element>
 inline Element* RepeatedField<Element>::AddAlreadyReserved() {
   GOOGLE_DCHECK_LT(current_size_, total_size_);
-  return &elements()[current_size_++];
+  return &rep()->elements[current_size_++];
 }
 
-template <typename Element>
-inline Element* RepeatedField<Element>::AddNAlreadyReserved(int n) {
-  GOOGLE_DCHECK_GE(total_size_ - current_size_, n)
-      << total_size_ << ", " << current_size_;
-  // Warning: sometimes people call this when n == 0 and total_size_ == 0. In
-  // this case the return pointer points to a zero size array (n == 0). Hence
-  // we can just use unsafe_elements(), because the user cannot dereference the
-  // pointer anyway.
-  Element* ret = unsafe_elements() + current_size_;
-  current_size_ += n;
+template<typename Element>
+inline Element* RepeatedField<Element>::AddNAlreadyReserved(int elements) {
+  GOOGLE_DCHECK_LE(current_size_ + elements, total_size_);
+  // Warning: total_size_ can be NULL if elements == 0 && current_size_ == 0.
+  // Existing callers depend on this behavior. :(
+  Element* ret = &ptr_.rep->elements[current_size_];
+  current_size_ += elements;
   return ret;
 }
 
-template <typename Element>
+template<typename Element>
 inline void RepeatedField<Element>::Resize(int new_size, const Element& value) {
   GOOGLE_DCHECK_GE(new_size, 0);
   if (new_size > current_size_) {
     Reserve(new_size);
-    std::fill(&elements()[current_size_], &elements()[new_size], value);
+    std::fill(&rep()->elements[current_size_],
+              &rep()->elements[new_size], value);
   }
   current_size_ = new_size;
 }
@@ -1185,72 +1165,33 @@ template <typename Element>
 inline const Element& RepeatedField<Element>::Get(int index) const {
   GOOGLE_DCHECK_GE(index, 0);
   GOOGLE_DCHECK_LT(index, current_size_);
-  return elements()[index];
-}
-
-template <typename Element>
-inline const Element& RepeatedField<Element>::at(int index) const {
-  GOOGLE_CHECK_GE(index, 0);
-  GOOGLE_CHECK_LT(index, current_size_);
-  return elements()[index];
-}
-
-template <typename Element>
-inline Element& RepeatedField<Element>::at(int index) {
-  GOOGLE_CHECK_GE(index, 0);
-  GOOGLE_CHECK_LT(index, current_size_);
-  return elements()[index];
+  return rep()->elements[index];
 }
 
 template <typename Element>
 inline Element* RepeatedField<Element>::Mutable(int index) {
   GOOGLE_DCHECK_GE(index, 0);
   GOOGLE_DCHECK_LT(index, current_size_);
-  return &elements()[index];
+  return &rep()->elements[index];
 }
 
 template <typename Element>
 inline void RepeatedField<Element>::Set(int index, const Element& value) {
   GOOGLE_DCHECK_GE(index, 0);
   GOOGLE_DCHECK_LT(index, current_size_);
-  elements()[index] = value;
+  rep()->elements[index] = value;
 }
 
 template <typename Element>
 inline void RepeatedField<Element>::Add(const Element& value) {
   if (current_size_ == total_size_) Reserve(total_size_ + 1);
-  elements()[current_size_++] = value;
+  rep()->elements[current_size_++] = value;
 }
 
 template <typename Element>
 inline Element* RepeatedField<Element>::Add() {
   if (current_size_ == total_size_) Reserve(total_size_ + 1);
-  return &elements()[current_size_++];
-}
-
-template <typename Element>
-template <typename Iter>
-inline void RepeatedField<Element>::Add(Iter begin, Iter end) {
-  int reserve = internal::CalculateReserve(begin, end);
-  if (reserve != -1) {
-    if (reserve == 0) {
-      return;
-    }
-
-    Reserve(reserve + size());
-    // TODO(ckennelly):  The compiler loses track of the buffer freshly
-    // allocated by Reserve() by the time we call elements, so it cannot
-    // guarantee that elements does not alias [begin(), end()).
-    //
-    // If restrict is available, annotating the pointer obtained from elements()
-    // causes this to lower to memcpy instead of memmove.
-    std::copy(begin, end, elements() + size());
-    current_size_ = reserve + size();
-  } else {
-    for (; begin != end; ++begin) {
-      Add(*begin);
-    }
-  }
+  return &rep()->elements[current_size_++];
 }
 
 template <typename Element>
@@ -1260,15 +1201,16 @@ inline void RepeatedField<Element>::RemoveLast() {
 }
 
 template <typename Element>
-void RepeatedField<Element>::ExtractSubrange(int start, int num,
-                                             Element* elements) {
+void RepeatedField<Element>::ExtractSubrange(
+    int start, int num, Element* elements) {
   GOOGLE_DCHECK_GE(start, 0);
   GOOGLE_DCHECK_GE(num, 0);
   GOOGLE_DCHECK_LE(start + num, this->current_size_);
 
   // Save the values of the removed elements if requested.
   if (elements != NULL) {
-    for (int i = 0; i < num; ++i) elements[i] = this->Get(i + start);
+    for (int i = 0; i < num; ++i)
+      elements[i] = this->Get(i + start);
   }
 
   // Slide remaining elements down to fill the gap.
@@ -1320,12 +1262,17 @@ inline typename RepeatedField<Element>::iterator RepeatedField<Element>::erase(
 
 template <typename Element>
 inline Element* RepeatedField<Element>::mutable_data() {
-  return unsafe_elements();
+  return total_size_ > 0 ? rep()->elements : NULL;
 }
 
 template <typename Element>
 inline const Element* RepeatedField<Element>::data() const {
-  return unsafe_elements();
+  return total_size_ > 0 ? rep()->elements : NULL;
+}
+
+template <typename Element>
+inline const Element* RepeatedField<Element>::unsafe_data() const {
+  return rep()->elements;
 }
 
 template <typename Element>
@@ -1333,7 +1280,7 @@ inline void RepeatedField<Element>::InternalSwap(RepeatedField* other) {
   GOOGLE_DCHECK(this != other);
   GOOGLE_DCHECK(GetArenaNoVirtual() == other->GetArenaNoVirtual());
 
-  std::swap(arena_or_elements_, other->arena_or_elements_);
+  std::swap(ptr_, other->ptr_);
   std::swap(current_size_, other->current_size_);
   std::swap(total_size_, other->total_size_);
 }
@@ -1360,37 +1307,38 @@ void RepeatedField<Element>::UnsafeArenaSwap(RepeatedField* other) {
 template <typename Element>
 void RepeatedField<Element>::SwapElements(int index1, int index2) {
   using std::swap;  // enable ADL with fallback
-  swap(elements()[index1], elements()[index2]);
+  swap(rep()->elements[index1], rep()->elements[index2]);
 }
 
 template <typename Element>
 inline typename RepeatedField<Element>::iterator
 RepeatedField<Element>::begin() {
-  return unsafe_elements();
+  return total_size_ > 0 ? rep()->elements : NULL;
 }
 template <typename Element>
 inline typename RepeatedField<Element>::const_iterator
 RepeatedField<Element>::begin() const {
-  return unsafe_elements();
+  return total_size_ > 0 ? rep()->elements : NULL;
 }
 template <typename Element>
 inline typename RepeatedField<Element>::const_iterator
 RepeatedField<Element>::cbegin() const {
-  return unsafe_elements();
+  return total_size_ > 0 ? rep()->elements : NULL;
 }
 template <typename Element>
-inline typename RepeatedField<Element>::iterator RepeatedField<Element>::end() {
-  return unsafe_elements() + current_size_;
+inline typename RepeatedField<Element>::iterator
+RepeatedField<Element>::end() {
+  return total_size_ > 0 ? rep()->elements + current_size_ : NULL;
 }
 template <typename Element>
 inline typename RepeatedField<Element>::const_iterator
 RepeatedField<Element>::end() const {
-  return unsafe_elements() + current_size_;
+  return total_size_ > 0 ? rep()->elements + current_size_ : NULL;
 }
 template <typename Element>
 inline typename RepeatedField<Element>::const_iterator
 RepeatedField<Element>::cend() const {
-  return unsafe_elements() + current_size_;
+  return total_size_ > 0 ? rep()->elements + current_size_ : NULL;
 }
 
 template <typename Element>
@@ -1404,25 +1352,23 @@ template <typename Element>
 void RepeatedField<Element>::Reserve(int new_size) {
   if (total_size_ >= new_size) return;
   Rep* old_rep = total_size_ > 0 ? rep() : NULL;
-  Rep* new_rep;
   Arena* arena = GetArenaNoVirtual();
-  new_size = std::max(internal::kMinRepeatedFieldAllocationSize,
+  new_size = std::max(google::protobuf::internal::kMinRepeatedFieldAllocationSize,
                       std::max(total_size_ * 2, new_size));
   GOOGLE_DCHECK_LE(
       static_cast<size_t>(new_size),
       (std::numeric_limits<size_t>::max() - kRepHeaderSize) / sizeof(Element))
       << "Requested size is too large to fit into size_t.";
-  size_t bytes =
-      kRepHeaderSize + sizeof(Element) * static_cast<size_t>(new_size);
+  size_t bytes = kRepHeaderSize + sizeof(Element) * static_cast<size_t>(new_size);
   if (arena == NULL) {
-    new_rep = static_cast<Rep*>(::operator new(bytes));
+    ptr_.rep = static_cast<Rep*>(::operator new(bytes));
   } else {
-    new_rep = reinterpret_cast<Rep*>(Arena::CreateArray<char>(arena, bytes));
+    ptr_.rep = reinterpret_cast<Rep*>(
+            ::google::protobuf::Arena::CreateArray<char>(arena, bytes));
   }
-  new_rep->arena = arena;
+  ptr_.rep->arena = arena;
   int old_total_size = total_size_;
   total_size_ = new_size;
-  arena_or_elements_ = new_rep->elements;
   // Invoke placement-new on newly allocated elements. We shouldn't have to do
   // this, since Element is supposed to be POD, but a previous version of this
   // code allocated storage with "new Element[size]" and some code uses
@@ -1432,13 +1378,13 @@ void RepeatedField<Element>::Reserve(int new_size) {
   // effect unless its side-effects are required for correctness.
   // Note that we do this before MoveArray() below because Element's copy
   // assignment implementation will want an initialized instance first.
-  Element* e = &elements()[0];
+  Element* e = &rep()->elements[0];
   Element* limit = e + total_size_;
   for (; e < limit; e++) {
     new (e) Element;
   }
   if (current_size_ > 0) {
-    MoveArray(&elements()[0], old_rep->elements, current_size_);
+    MoveArray(&rep()->elements[0], old_rep->elements, current_size_);
   }
 
   // Likewise, we need to invoke destructors on the old array.
@@ -1455,23 +1401,22 @@ inline void RepeatedField<Element>::Truncate(int new_size) {
 }
 
 template <typename Element>
-inline void RepeatedField<Element>::MoveArray(Element* to, Element* from,
-                                              int array_size) {
+inline void RepeatedField<Element>::MoveArray(
+  Element* to, Element* from, int array_size) {
   CopyArray(to, from, array_size);
 }
 
 template <typename Element>
-inline void RepeatedField<Element>::CopyArray(Element* to, const Element* from,
-                                              int array_size) {
+inline void RepeatedField<Element>::CopyArray(
+  Element* to, const Element* from, int array_size) {
   internal::ElementCopier<Element>()(to, from, array_size);
 }
 
 namespace internal {
 
 template <typename Element, bool HasTrivialCopy>
-void ElementCopier<Element, HasTrivialCopy>::operator()(Element* to,
-                                                        const Element* from,
-                                                        int array_size) {
+void ElementCopier<Element, HasTrivialCopy>::operator()(
+  Element* to, const Element* from, int array_size) {
   std::copy(from, from + array_size, to);
 }
 
@@ -1490,10 +1435,18 @@ struct ElementCopier<Element, true> {
 namespace internal {
 
 inline RepeatedPtrFieldBase::RepeatedPtrFieldBase()
-    : arena_(NULL), current_size_(0), total_size_(0), rep_(NULL) {}
+  : arena_(NULL),
+    current_size_(0),
+    total_size_(0),
+    rep_(NULL) {
+}
 
-inline RepeatedPtrFieldBase::RepeatedPtrFieldBase(Arena* arena)
-    : arena_(arena), current_size_(0), total_size_(0), rep_(NULL) {}
+inline RepeatedPtrFieldBase::RepeatedPtrFieldBase(::google::protobuf::Arena* arena)
+  : arena_(arena),
+    current_size_(0),
+    total_size_(0),
+    rep_(NULL) {
+}
 
 template <typename TypeHandler>
 void RepeatedPtrFieldBase::Destroy() {
@@ -1538,35 +1491,25 @@ void RepeatedPtrFieldBase::SwapFallback(RepeatedPtrFieldBase* other) {
   temp.Destroy<TypeHandler>();  // Frees rep_ if `other` had no arena.
 }
 
-inline bool RepeatedPtrFieldBase::empty() const { return current_size_ == 0; }
+inline bool RepeatedPtrFieldBase::empty() const {
+  return current_size_ == 0;
+}
 
-inline int RepeatedPtrFieldBase::size() const { return current_size_; }
+inline int RepeatedPtrFieldBase::size() const {
+  return current_size_;
+}
 
 template <typename TypeHandler>
-inline const typename TypeHandler::WeakType& RepeatedPtrFieldBase::Get(
-    int index) const {
+inline const typename TypeHandler::WeakType&
+RepeatedPtrFieldBase::Get(int index) const {
   GOOGLE_DCHECK_GE(index, 0);
   GOOGLE_DCHECK_LT(index, current_size_);
   return *cast<TypeHandler>(rep_->elements[index]);
 }
 
 template <typename TypeHandler>
-inline const typename TypeHandler::Type& RepeatedPtrFieldBase::at(
-    int index) const {
-  GOOGLE_CHECK_GE(index, 0);
-  GOOGLE_CHECK_LT(index, current_size_);
-  return *cast<TypeHandler>(rep_->elements[index]);
-}
-
-template <typename TypeHandler>
-inline typename TypeHandler::Type& RepeatedPtrFieldBase::at(int index) {
-  GOOGLE_CHECK_GE(index, 0);
-  GOOGLE_CHECK_LT(index, current_size_);
-  return *cast<TypeHandler>(rep_->elements[index]);
-}
-
-template <typename TypeHandler>
-inline typename TypeHandler::Type* RepeatedPtrFieldBase::Mutable(int index) {
+inline typename TypeHandler::Type*
+RepeatedPtrFieldBase::Mutable(int index) {
   GOOGLE_DCHECK_GE(index, 0);
   GOOGLE_DCHECK_LT(index, current_size_);
   return cast<TypeHandler>(rep_->elements[index]);
@@ -1595,9 +1538,10 @@ inline typename TypeHandler::Type* RepeatedPtrFieldBase::Add(
   return result;
 }
 
-template <typename TypeHandler,
-          typename std::enable_if<TypeHandler::Movable::value>::type*>
-inline void RepeatedPtrFieldBase::Add(typename TypeHandler::Type&& value) {
+template <typename TypeHandler>
+inline void RepeatedPtrFieldBase::Add(
+    typename TypeHandler::Type&& value,
+    std::enable_if<TypeHandler::Moveable>*) {
   if (rep_ != NULL && current_size_ < rep_->allocated_size) {
     *cast<TypeHandler>(rep_->elements[current_size_++]) = std::move(value);
     return;
@@ -1641,8 +1585,8 @@ template <typename TypeHandler>
 inline void RepeatedPtrFieldBase::MergeFrom(const RepeatedPtrFieldBase& other) {
   GOOGLE_DCHECK_NE(&other, this);
   if (other.current_size_ == 0) return;
-  MergeFromInternal(other,
-                    &RepeatedPtrFieldBase::MergeFromInnerLoop<TypeHandler>);
+  MergeFromInternal(
+      other, &RepeatedPtrFieldBase::MergeFromInnerLoop<TypeHandler>);
 }
 
 inline void RepeatedPtrFieldBase::MergeFromInternal(
@@ -1653,8 +1597,8 @@ inline void RepeatedPtrFieldBase::MergeFromInternal(
   void** other_elements = other.rep_->elements;
   void** new_elements = InternalExtend(other_size);
   int allocated_elems = rep_->allocated_size - current_size_;
-  (this->*inner_loop)(new_elements, other_elements, other_size,
-                      allocated_elems);
+  (this->*inner_loop)(new_elements, other_elements,
+                      other_size, allocated_elems);
   current_size_ += other_size;
   if (rep_->allocated_size < current_size_) {
     rep_->allocated_size = current_size_;
@@ -1662,10 +1606,9 @@ inline void RepeatedPtrFieldBase::MergeFromInternal(
 }
 
 // Merges other_elems to our_elems.
-template <typename TypeHandler>
-void RepeatedPtrFieldBase::MergeFromInnerLoop(void** our_elems,
-                                              void** other_elems, int length,
-                                              int already_allocated) {
+template<typename TypeHandler>
+void RepeatedPtrFieldBase::MergeFromInnerLoop(
+    void** our_elems, void** other_elems, int length, int already_allocated) {
   // Split into two loops, over ranges [0, allocated) and [allocated, length),
   // to avoid a branch within the loop.
   for (int i = 0; i < already_allocated && i < length; i++) {
@@ -1695,7 +1638,9 @@ inline void RepeatedPtrFieldBase::CopyFrom(const RepeatedPtrFieldBase& other) {
   RepeatedPtrFieldBase::MergeFrom<TypeHandler>(other);
 }
 
-inline int RepeatedPtrFieldBase::Capacity() const { return total_size_; }
+inline int RepeatedPtrFieldBase::Capacity() const {
+  return total_size_;
+}
 
 inline void* const* RepeatedPtrFieldBase::raw_data() const {
   return rep_ ? rep_->elements : NULL;
@@ -1713,8 +1658,8 @@ inline typename TypeHandler::Type** RepeatedPtrFieldBase::mutable_data() {
 }
 
 template <typename TypeHandler>
-inline const typename TypeHandler::Type* const* RepeatedPtrFieldBase::data()
-    const {
+inline const typename TypeHandler::Type* const*
+RepeatedPtrFieldBase::data() const {
   // TODO(kenton):  Breaks C++ aliasing rules.  We should probably remove this
   //   method entirely.
   return reinterpret_cast<const typename TypeHandler::Type* const*>(raw_data());
@@ -1730,8 +1675,8 @@ inline size_t RepeatedPtrFieldBase::SpaceUsedExcludingSelfLong() const {
   size_t allocated_bytes = static_cast<size_t>(total_size_) * sizeof(void*);
   if (rep_ != NULL) {
     for (int i = 0; i < rep_->allocated_size; ++i) {
-      allocated_bytes +=
-          TypeHandler::SpaceUsedLong(*cast<TypeHandler>(rep_->elements[i]));
+      allocated_bytes += TypeHandler::SpaceUsedLong(
+          *cast<TypeHandler>(rep_->elements[i]));
     }
     allocated_bytes += kRepHeaderSize;
   }
@@ -1750,11 +1695,13 @@ inline typename TypeHandler::Type* RepeatedPtrFieldBase::AddFromCleared() {
 // AddAllocated version that implements arena-safe copying behavior.
 template <typename TypeHandler>
 void RepeatedPtrFieldBase::AddAllocatedInternal(
-    typename TypeHandler::Type* value, std::true_type) {
-  Arena* element_arena =
-      reinterpret_cast<Arena*>(TypeHandler::GetMaybeArenaPointer(value));
+    typename TypeHandler::Type* value,
+    std::true_type) {
+  Arena* element_arena = reinterpret_cast<Arena*>(
+      TypeHandler::GetMaybeArenaPointer(value));
   Arena* arena = GetArenaNoVirtual();
-  if (arena == element_arena && rep_ && rep_->allocated_size < total_size_) {
+  if (arena == element_arena && rep_ &&
+      rep_->allocated_size < total_size_) {
     // Fast path: underlying arena representation (tagged pointer) is equal to
     // our arena pointer, and we can add to array without resizing it (at least
     // one slot that is not allocated).
@@ -1768,13 +1715,13 @@ void RepeatedPtrFieldBase::AddAllocatedInternal(
     current_size_ = current_size_ + 1;
     rep_->allocated_size = rep_->allocated_size + 1;
   } else {
-    AddAllocatedSlowWithCopy<TypeHandler>(value, TypeHandler::GetArena(value),
-                                          arena);
+    AddAllocatedSlowWithCopy<TypeHandler>(
+        value, TypeHandler::GetArena(value), arena);
   }
 }
 
 // Slowpath handles all cases, copying if necessary.
-template <typename TypeHandler>
+template<typename TypeHandler>
 void RepeatedPtrFieldBase::AddAllocatedSlowWithCopy(
     // Pass value_arena and my_arena to avoid duplicate virtual call (value) or
     // load (mine).
@@ -1798,8 +1745,9 @@ void RepeatedPtrFieldBase::AddAllocatedSlowWithCopy(
 // AddAllocated version that does not implement arena-safe copying behavior.
 template <typename TypeHandler>
 void RepeatedPtrFieldBase::AddAllocatedInternal(
-    typename TypeHandler::Type* value, std::false_type) {
-  if (rep_ && rep_->allocated_size < total_size_) {
+    typename TypeHandler::Type* value,
+    std::false_type) {
+  if (rep_ &&  rep_->allocated_size < total_size_) {
     // Fast path: underlying arena representation (tagged pointer) is equal to
     // our arena pointer, and we can add to array without resizing it (at least
     // one slot that is not allocated).
@@ -1830,8 +1778,8 @@ void RepeatedPtrFieldBase::UnsafeArenaAddAllocated(
     // cleared objects awaiting reuse.  We don't want to grow the array in this
     // case because otherwise a loop calling AddAllocated() followed by Clear()
     // would leak memory.
-    TypeHandler::Delete(cast<TypeHandler>(rep_->elements[current_size_]),
-                        arena_);
+    TypeHandler::Delete(
+        cast<TypeHandler>(rep_->elements[current_size_]), arena_);
   } else if (current_size_ < rep_->allocated_size) {
     // We have some cleared objects.  We don't care about their order, so we
     // can just move the first one to the end to make space.
@@ -1847,8 +1795,8 @@ void RepeatedPtrFieldBase::UnsafeArenaAddAllocated(
 
 // ReleaseLast() for types that implement merge/copy behavior.
 template <typename TypeHandler>
-inline typename TypeHandler::Type* RepeatedPtrFieldBase::ReleaseLastInternal(
-    std::true_type) {
+inline typename TypeHandler::Type*
+RepeatedPtrFieldBase::ReleaseLastInternal(std::true_type) {
   // First, release an element.
   typename TypeHandler::Type* result = UnsafeArenaReleaseLast<TypeHandler>();
   // Now perform a copy if we're on an arena.
@@ -1868,8 +1816,8 @@ inline typename TypeHandler::Type* RepeatedPtrFieldBase::ReleaseLastInternal(
 // an arena, since the user really should implement the copy operation in this
 // case.
 template <typename TypeHandler>
-inline typename TypeHandler::Type* RepeatedPtrFieldBase::ReleaseLastInternal(
-    std::false_type) {
+inline typename TypeHandler::Type*
+RepeatedPtrFieldBase::ReleaseLastInternal(std::false_type) {
   GOOGLE_DCHECK(GetArenaNoVirtual() == NULL)
       << "ReleaseLast() called on a RepeatedPtrField that is on an arena, "
       << "with a type that does not implement MergeFrom. This is unsafe; "
@@ -1879,7 +1827,7 @@ inline typename TypeHandler::Type* RepeatedPtrFieldBase::ReleaseLastInternal(
 
 template <typename TypeHandler>
 inline typename TypeHandler::Type*
-RepeatedPtrFieldBase::UnsafeArenaReleaseLast() {
+  RepeatedPtrFieldBase::UnsafeArenaReleaseLast() {
   GOOGLE_DCHECK_GT(current_size_, 0);
   typename TypeHandler::Type* result =
       cast<TypeHandler>(rep_->elements[--current_size_]);
@@ -1926,30 +1874,33 @@ inline typename TypeHandler::Type* RepeatedPtrFieldBase::ReleaseCleared() {
 
 template <typename Element>
 class RepeatedPtrField<Element>::TypeHandler
-    : public internal::GenericTypeHandler<Element> {};
+    : public internal::GenericTypeHandler<Element> {
+};
 
 template <>
-class RepeatedPtrField<std::string>::TypeHandler
-    : public internal::StringTypeHandler {};
+class RepeatedPtrField<string>::TypeHandler
+    : public internal::StringTypeHandler {
+};
 
 template <typename Element>
-inline RepeatedPtrField<Element>::RepeatedPtrField() : RepeatedPtrFieldBase() {}
+inline RepeatedPtrField<Element>::RepeatedPtrField()
+  : RepeatedPtrFieldBase() {}
 
 template <typename Element>
-inline RepeatedPtrField<Element>::RepeatedPtrField(Arena* arena)
-    : RepeatedPtrFieldBase(arena) {}
+inline RepeatedPtrField<Element>::RepeatedPtrField(::google::protobuf::Arena* arena) :
+  RepeatedPtrFieldBase(arena) {}
 
 template <typename Element>
 inline RepeatedPtrField<Element>::RepeatedPtrField(
     const RepeatedPtrField& other)
-    : RepeatedPtrFieldBase() {
+  : RepeatedPtrFieldBase() {
   MergeFrom(other);
 }
 
 template <typename Element>
 template <typename Iter>
-inline RepeatedPtrField<Element>::RepeatedPtrField(Iter begin,
-                                                   const Iter& end) {
+inline RepeatedPtrField<Element>::RepeatedPtrField(
+    Iter begin, const Iter& end) {
   int reserve = internal::CalculateReserve(begin, end);
   if (reserve != -1) {
     Reserve(reserve);
@@ -1967,7 +1918,8 @@ RepeatedPtrField<Element>::~RepeatedPtrField() {
 template <typename Element>
 inline RepeatedPtrField<Element>& RepeatedPtrField<Element>::operator=(
     const RepeatedPtrField& other) {
-  if (this != &other) CopyFrom(other);
+  if (this != &other)
+    CopyFrom(other);
   return *this;
 }
 
@@ -1976,8 +1928,7 @@ inline RepeatedPtrField<Element>::RepeatedPtrField(
     RepeatedPtrField&& other) noexcept
     : RepeatedPtrField() {
   // We don't just call Swap(&other) here because it would perform 3 copies if
-  // other is on an arena. This field can't be on an arena because arena
-  // construction always uses the Arena* accepting constructor.
+  // the two fields are on different arenas.
   if (other.GetArenaNoVirtual()) {
     CopyFrom(other);
   } else {
@@ -2015,16 +1966,6 @@ inline const Element& RepeatedPtrField<Element>::Get(int index) const {
   return RepeatedPtrFieldBase::Get<TypeHandler>(index);
 }
 
-template <typename Element>
-inline const Element& RepeatedPtrField<Element>::at(int index) const {
-  return RepeatedPtrFieldBase::at<TypeHandler>(index);
-}
-
-template <typename Element>
-inline Element& RepeatedPtrField<Element>::at(int index) {
-  return RepeatedPtrFieldBase::at<TypeHandler>(index);
-}
-
 
 template <typename Element>
 inline Element* RepeatedPtrField<Element>::Mutable(int index) {
@@ -2058,8 +1999,8 @@ inline void RepeatedPtrField<Element>::DeleteSubrange(int start, int num) {
 }
 
 template <typename Element>
-inline void RepeatedPtrField<Element>::ExtractSubrange(int start, int num,
-                                                       Element** elements) {
+inline void RepeatedPtrField<Element>::ExtractSubrange(
+    int start, int num, Element** elements) {
   typename internal::TypeImplementsMergeBehavior<
       typename TypeHandler::Type>::type t;
   ExtractSubrangeInternal(start, num, elements, t);
@@ -2081,8 +2022,8 @@ inline void RepeatedPtrField<Element>::ExtractSubrangeInternal(
         // If we're on an arena, we perform a copy for each element so that the
         // returned elements are heap-allocated.
         for (int i = 0; i < num; ++i) {
-          Element* element =
-              RepeatedPtrFieldBase::Mutable<TypeHandler>(i + start);
+          Element* element = RepeatedPtrFieldBase::
+              Mutable<TypeHandler>(i + start);
           typename TypeHandler::Type* new_value =
               TypeHandler::NewFromPrototype(element, NULL);
           TypeHandler::Merge(*element, new_value);
@@ -2100,7 +2041,7 @@ inline void RepeatedPtrField<Element>::ExtractSubrangeInternal(
 
 // ExtractSubrange() implementation for types that do not implement merge/copy
 // behavior.
-template <typename Element>
+template<typename Element>
 inline void RepeatedPtrField<Element>::ExtractSubrangeInternal(
     int start, int num, Element** elements, std::false_type) {
   // This case is identical to UnsafeArenaExtractSubrange(). However, since
@@ -2143,7 +2084,8 @@ inline void RepeatedPtrField<Element>::MergeFrom(
 }
 
 template <typename Element>
-inline void RepeatedPtrField<Element>::CopyFrom(const RepeatedPtrField& other) {
+inline void RepeatedPtrField<Element>::CopyFrom(
+    const RepeatedPtrField& other) {
   RepeatedPtrFieldBase::CopyFrom<TypeHandler>(other);
 }
 
@@ -2174,14 +2116,16 @@ inline const Element* const* RepeatedPtrField<Element>::data() const {
 
 template <typename Element>
 inline void RepeatedPtrField<Element>::Swap(RepeatedPtrField* other) {
-  if (this == other) return;
+  if (this == other)
+    return;
   RepeatedPtrFieldBase::Swap<TypeHandler>(other);
 }
 
 template <typename Element>
 inline void RepeatedPtrField<Element>::UnsafeArenaSwap(
     RepeatedPtrField* other) {
-  if (this == other) return;
+  if (this == other)
+      return;
   RepeatedPtrFieldBase::InternalSwap(other);
 }
 
@@ -2260,22 +2204,31 @@ namespace internal {
 //
 // This code based on net/proto/proto-array-internal.h by Jeffrey Yasskin
 // (jyasskin@google.com).
-template <typename Element>
-class RepeatedPtrIterator {
+template<typename Element>
+class RepeatedPtrIterator
+    : public std::iterator<
+          std::random_access_iterator_tag, Element> {
  public:
-  using iterator = RepeatedPtrIterator<Element>;
-  using iterator_category = std::random_access_iterator_tag;
-  using value_type = typename std::remove_const<Element>::type;
-  using difference_type = std::ptrdiff_t;
-  using pointer = Element*;
-  using reference = Element&;
+  typedef RepeatedPtrIterator<Element> iterator;
+  typedef std::iterator<
+          std::random_access_iterator_tag, Element> superclass;
+
+  // Shadow the value_type in std::iterator<> because const_iterator::value_type
+  // needs to be T, not const T.
+  typedef typename std::remove_const<Element>::type value_type;
+
+  // Let the compiler know that these are type names, so we don't have to
+  // write "typename" in front of them everywhere.
+  typedef typename superclass::reference reference;
+  typedef typename superclass::pointer pointer;
+  typedef typename superclass::difference_type difference_type;
 
   RepeatedPtrIterator() : it_(NULL) {}
   explicit RepeatedPtrIterator(void* const* it) : it_(it) {}
 
   // Allow "upcasting" from RepeatedPtrIterator<T**> to
   // RepeatedPtrIterator<const T*const*>.
-  template <typename OtherElement>
+  template<typename OtherElement>
   RepeatedPtrIterator(const RepeatedPtrIterator<OtherElement>& other)
       : it_(other.it_) {
     // Force a compiler error if the other type is not convertible to ours.
@@ -2286,19 +2239,13 @@ class RepeatedPtrIterator {
 
   // dereferenceable
   reference operator*() const { return *reinterpret_cast<Element*>(*it_); }
-  pointer operator->() const { return &(operator*()); }
+  pointer   operator->() const { return &(operator*()); }
 
   // {inc,dec}rementable
-  iterator& operator++() {
-    ++it_;
-    return *this;
-  }
-  iterator operator++(int) { return iterator(it_++); }
-  iterator& operator--() {
-    --it_;
-    return *this;
-  }
-  iterator operator--(int) { return iterator(it_--); }
+  iterator& operator++() { ++it_; return *this; }
+  iterator  operator++(int) { return iterator(it_++); }
+  iterator& operator--() { --it_; return *this; }
+  iterator  operator--(int) { return iterator(it_--); }
 
   // equality_comparable
   bool operator==(const iterator& x) const { return it_ == x.it_; }
@@ -2339,7 +2286,7 @@ class RepeatedPtrIterator {
   difference_type operator-(const iterator& x) const { return it_ - x.it_; }
 
  private:
-  template <typename OtherElement>
+  template<typename OtherElement>
   friend class RepeatedPtrIterator;
 
   // The internal iterator.
@@ -2354,33 +2301,34 @@ class RepeatedPtrIterator {
 // referenced by the iterator.  It should either be "void *" for a mutable
 // iterator, or "const void* const" for a constant iterator.
 template <typename Element, typename VoidPtr>
-class RepeatedPtrOverPtrsIterator {
+class RepeatedPtrOverPtrsIterator
+    : public std::iterator<std::random_access_iterator_tag, Element> {
  public:
-  using iterator = RepeatedPtrOverPtrsIterator<Element, VoidPtr>;
-  using iterator_category = std::random_access_iterator_tag;
-  using value_type = typename std::remove_const<Element>::type;
-  using difference_type = std::ptrdiff_t;
-  using pointer = Element*;
-  using reference = Element&;
+  typedef RepeatedPtrOverPtrsIterator<Element, VoidPtr> iterator;
+  typedef std::iterator<std::random_access_iterator_tag, Element> superclass;
+
+  // Shadow the value_type in std::iterator<> because const_iterator::value_type
+  // needs to be T, not const T.
+  typedef typename std::remove_const<Element>::type value_type;
+
+  // Let the compiler know that these are type names, so we don't have to
+  // write "typename" in front of them everywhere.
+  typedef typename superclass::reference reference;
+  typedef typename superclass::pointer pointer;
+  typedef typename superclass::difference_type difference_type;
 
   RepeatedPtrOverPtrsIterator() : it_(NULL) {}
   explicit RepeatedPtrOverPtrsIterator(VoidPtr* it) : it_(it) {}
 
   // dereferenceable
   reference operator*() const { return *reinterpret_cast<Element*>(it_); }
-  pointer operator->() const { return &(operator*()); }
+  pointer   operator->() const { return &(operator*()); }
 
   // {inc,dec}rementable
-  iterator& operator++() {
-    ++it_;
-    return *this;
-  }
-  iterator operator++(int) { return iterator(it_++); }
-  iterator& operator--() {
-    --it_;
-    return *this;
-  }
-  iterator operator--(int) { return iterator(it_--); }
+  iterator& operator++() { ++it_; return *this; }
+  iterator  operator++(int) { return iterator(it_++); }
+  iterator& operator--() { --it_; return *this; }
+  iterator  operator--(int) { return iterator(it_--); }
 
   // equality_comparable
   bool operator==(const iterator& x) const { return it_ == x.it_; }
@@ -2421,7 +2369,7 @@ class RepeatedPtrOverPtrsIterator {
   difference_type operator-(const iterator& x) const { return it_ - x.it_; }
 
  private:
-  template <typename OtherElement>
+  template<typename OtherElement>
   friend class RepeatedPtrIterator;
 
   // The internal iterator.
@@ -2492,30 +2440,35 @@ RepeatedPtrField<Element>::pointer_end() const {
       const_cast<const void* const*>(raw_data() + size()));
 }
 
+
 // Iterators and helper functions that follow the spirit of the STL
 // std::back_insert_iterator and std::back_inserter but are tailor-made
 // for RepeatedField and RepeatedPtrField. Typical usage would be:
 //
 //   std::copy(some_sequence.begin(), some_sequence.end(),
-//             RepeatedFieldBackInserter(proto.mutable_sequence()));
+//             google::protobuf::RepeatedFieldBackInserter(proto.mutable_sequence()));
 //
 // Ported by johannes from util/gtl/proto-array-iterators.h
 
 namespace internal {
 // A back inserter for RepeatedField objects.
-template <typename T>
-class RepeatedFieldBackInsertIterator
+template<typename T> class RepeatedFieldBackInsertIterator
     : public std::iterator<std::output_iterator_tag, T> {
  public:
   explicit RepeatedFieldBackInsertIterator(
       RepeatedField<T>* const mutable_field)
-      : field_(mutable_field) {}
+      : field_(mutable_field) {
+  }
   RepeatedFieldBackInsertIterator<T>& operator=(const T& value) {
     field_->Add(value);
     return *this;
   }
-  RepeatedFieldBackInsertIterator<T>& operator*() { return *this; }
-  RepeatedFieldBackInsertIterator<T>& operator++() { return *this; }
+  RepeatedFieldBackInsertIterator<T>& operator*() {
+    return *this;
+  }
+  RepeatedFieldBackInsertIterator<T>& operator++() {
+    return *this;
+  }
   RepeatedFieldBackInsertIterator<T>& operator++(int /* unused */) {
     return *this;
   }
@@ -2525,12 +2478,13 @@ class RepeatedFieldBackInsertIterator
 };
 
 // A back inserter for RepeatedPtrField objects.
-template <typename T>
-class RepeatedPtrFieldBackInsertIterator
+template<typename T> class RepeatedPtrFieldBackInsertIterator
     : public std::iterator<std::output_iterator_tag, T> {
  public:
-  RepeatedPtrFieldBackInsertIterator(RepeatedPtrField<T>* const mutable_field)
-      : field_(mutable_field) {}
+  RepeatedPtrFieldBackInsertIterator(
+      RepeatedPtrField<T>* const mutable_field)
+      : field_(mutable_field) {
+  }
   RepeatedPtrFieldBackInsertIterator<T>& operator=(const T& value) {
     *field_->Add() = value;
     return *this;
@@ -2544,8 +2498,12 @@ class RepeatedPtrFieldBackInsertIterator
     *field_->Add() = std::move(value);
     return *this;
   }
-  RepeatedPtrFieldBackInsertIterator<T>& operator*() { return *this; }
-  RepeatedPtrFieldBackInsertIterator<T>& operator++() { return *this; }
+  RepeatedPtrFieldBackInsertIterator<T>& operator*() {
+    return *this;
+  }
+  RepeatedPtrFieldBackInsertIterator<T>& operator++() {
+    return *this;
+  }
   RepeatedPtrFieldBackInsertIterator<T>& operator++(int /* unused */) {
     return *this;
   }
@@ -2556,21 +2514,26 @@ class RepeatedPtrFieldBackInsertIterator
 
 // A back inserter for RepeatedPtrFields that inserts by transferring ownership
 // of a pointer.
-template <typename T>
-class AllocatedRepeatedPtrFieldBackInsertIterator
+template<typename T> class AllocatedRepeatedPtrFieldBackInsertIterator
     : public std::iterator<std::output_iterator_tag, T> {
  public:
   explicit AllocatedRepeatedPtrFieldBackInsertIterator(
       RepeatedPtrField<T>* const mutable_field)
-      : field_(mutable_field) {}
+      : field_(mutable_field) {
+  }
   AllocatedRepeatedPtrFieldBackInsertIterator<T>& operator=(
       T* const ptr_to_value) {
     field_->AddAllocated(ptr_to_value);
     return *this;
   }
-  AllocatedRepeatedPtrFieldBackInsertIterator<T>& operator*() { return *this; }
-  AllocatedRepeatedPtrFieldBackInsertIterator<T>& operator++() { return *this; }
-  AllocatedRepeatedPtrFieldBackInsertIterator<T>& operator++(int /* unused */) {
+  AllocatedRepeatedPtrFieldBackInsertIterator<T>& operator*() {
+    return *this;
+  }
+  AllocatedRepeatedPtrFieldBackInsertIterator<T>& operator++() {
+    return *this;
+  }
+  AllocatedRepeatedPtrFieldBackInsertIterator<T>& operator++(
+      int /* unused */) {
     return *this;
   }
 
@@ -2580,15 +2543,16 @@ class AllocatedRepeatedPtrFieldBackInsertIterator
 
 // Almost identical to AllocatedRepeatedPtrFieldBackInsertIterator. This one
 // uses the UnsafeArenaAddAllocated instead.
-template <typename T>
+template<typename T>
 class UnsafeArenaAllocatedRepeatedPtrFieldBackInsertIterator
     : public std::iterator<std::output_iterator_tag, T> {
  public:
   explicit UnsafeArenaAllocatedRepeatedPtrFieldBackInsertIterator(
-      RepeatedPtrField<T>* const mutable_field)
-      : field_(mutable_field) {}
+    ::google::protobuf::RepeatedPtrField<T>* const mutable_field)
+  : field_(mutable_field) {
+  }
   UnsafeArenaAllocatedRepeatedPtrFieldBackInsertIterator<T>& operator=(
-      T const* const ptr_to_value) {
+    T const* const ptr_to_value) {
     field_->UnsafeArenaAddAllocated(const_cast<T*>(ptr_to_value));
     return *this;
   }
@@ -2604,41 +2568,37 @@ class UnsafeArenaAllocatedRepeatedPtrFieldBackInsertIterator
   }
 
  private:
-  RepeatedPtrField<T>* field_;
+  ::google::protobuf::RepeatedPtrField<T>* field_;
 };
 
 }  // namespace internal
 
 // Provides a back insert iterator for RepeatedField instances,
 // similar to std::back_inserter().
-template <typename T>
-internal::RepeatedFieldBackInsertIterator<T> RepeatedFieldBackInserter(
-    RepeatedField<T>* const mutable_field) {
+template<typename T> internal::RepeatedFieldBackInsertIterator<T>
+RepeatedFieldBackInserter(RepeatedField<T>* const mutable_field) {
   return internal::RepeatedFieldBackInsertIterator<T>(mutable_field);
 }
 
 // Provides a back insert iterator for RepeatedPtrField instances,
 // similar to std::back_inserter().
-template <typename T>
-internal::RepeatedPtrFieldBackInsertIterator<T> RepeatedPtrFieldBackInserter(
-    RepeatedPtrField<T>* const mutable_field) {
+template<typename T> internal::RepeatedPtrFieldBackInsertIterator<T>
+RepeatedPtrFieldBackInserter(RepeatedPtrField<T>* const mutable_field) {
   return internal::RepeatedPtrFieldBackInsertIterator<T>(mutable_field);
 }
 
 // Special back insert iterator for RepeatedPtrField instances, just in
 // case someone wants to write generic template code that can access both
 // RepeatedFields and RepeatedPtrFields using a common name.
-template <typename T>
-internal::RepeatedPtrFieldBackInsertIterator<T> RepeatedFieldBackInserter(
-    RepeatedPtrField<T>* const mutable_field) {
+template<typename T> internal::RepeatedPtrFieldBackInsertIterator<T>
+RepeatedFieldBackInserter(RepeatedPtrField<T>* const mutable_field) {
   return internal::RepeatedPtrFieldBackInsertIterator<T>(mutable_field);
 }
 
 // Provides a back insert iterator for RepeatedPtrField instances
 // similar to std::back_inserter() which transfers the ownership while
 // copying elements.
-template <typename T>
-internal::AllocatedRepeatedPtrFieldBackInsertIterator<T>
+template<typename T> internal::AllocatedRepeatedPtrFieldBackInsertIterator<T>
 AllocatedRepeatedPtrFieldBackInserter(
     RepeatedPtrField<T>* const mutable_field) {
   return internal::AllocatedRepeatedPtrFieldBackInsertIterator<T>(
@@ -2656,27 +2616,15 @@ AllocatedRepeatedPtrFieldBackInserter(
 // If you put temp_field on the arena this fails, because the ownership
 // transfers to the arena at the "AddAllocated" call and is not released anymore
 // causing a double delete. Using UnsafeArenaAddAllocated prevents this.
-template <typename T>
+template<typename T>
 internal::UnsafeArenaAllocatedRepeatedPtrFieldBackInsertIterator<T>
 UnsafeArenaAllocatedRepeatedPtrFieldBackInserter(
-    RepeatedPtrField<T>* const mutable_field) {
+    ::google::protobuf::RepeatedPtrField<T>* const mutable_field) {
   return internal::UnsafeArenaAllocatedRepeatedPtrFieldBackInsertIterator<T>(
       mutable_field);
 }
 
-// Extern declarations of common instantiations to reduce libray bloat.
-extern template class PROTOBUF_EXPORT RepeatedField<bool>;
-extern template class PROTOBUF_EXPORT RepeatedField<int32>;
-extern template class PROTOBUF_EXPORT RepeatedField<uint32>;
-extern template class PROTOBUF_EXPORT RepeatedField<int64>;
-extern template class PROTOBUF_EXPORT RepeatedField<uint64>;
-extern template class PROTOBUF_EXPORT RepeatedField<float>;
-extern template class PROTOBUF_EXPORT RepeatedField<double>;
-extern template class PROTOBUF_EXPORT RepeatedPtrField<std::string>;
-
 }  // namespace protobuf
+
 }  // namespace google
-
-#include <google/protobuf/port_undef.inc>
-
 #endif  // GOOGLE_PROTOBUF_REPEATED_FIELD_H__

@@ -28,17 +28,20 @@ bool RoutineManager::SendMsg2RoutineType(RoutineType nType, const MessagePtr& me
 	}
 	return false;
 }
-void RoutineManager::RegisterRoutine(std::shared_ptr<Routine> r)
+uint64_t RoutineManager::RegisterRoutine(std::shared_ptr<Routine> r)
 {
 	//Log("SceneRoutine RegisterRoutine() try lock");
+	uint64_t nRoutineID = -1;
+	r->OnInit();
 	{
 		lock_write(m_Lock);
+		nRoutineID = m_GenerateRoutineID++;
 		//if(startserver == false)sleep_ms(10 * 1000);
-		r->SetRoutineID(m_GenerateRoutineID++);
+		r->SetRoutineID(nRoutineID);
 		m_AllRoutine.push_back(r);
 	}
 	g_threadPool.AddTask(r);
-	
+	return nRoutineID;
 	//Log("SceneRoutine RegisterRoutine() try unlock");
 }
 //void RoutineManager::UnRegisterRoutine(std::shared_ptr<Routine> r)

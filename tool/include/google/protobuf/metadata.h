@@ -41,10 +41,6 @@
 #include <google/protobuf/metadata_lite.h>
 #include <google/protobuf/unknown_field_set.h>
 
-#ifdef SWIG
-#error "You cannot SWIG proto headers"
-#endif
-
 namespace google {
 namespace protobuf {
 namespace internal {
@@ -56,15 +52,19 @@ class InternalMetadataWithArena
   InternalMetadataWithArena() {}
   explicit InternalMetadataWithArena(Arena* arena)
       : InternalMetadataWithArenaBase<UnknownFieldSet,
-                                      InternalMetadataWithArena>(arena) {}
+                                           InternalMetadataWithArena>(arena) {}
 
-  void DoSwap(UnknownFieldSet* other) { mutable_unknown_fields()->Swap(other); }
+  void DoSwap(UnknownFieldSet* other) {
+    mutable_unknown_fields()->Swap(other);
+  }
 
   void DoMergeFrom(const UnknownFieldSet& other) {
     mutable_unknown_fields()->MergeFrom(other);
   }
 
-  void DoClear() { mutable_unknown_fields()->Clear(); }
+  void DoClear() {
+    mutable_unknown_fields()->Clear();
+  }
 
   static const UnknownFieldSet& default_instance() {
     return *UnknownFieldSet::default_instance();
@@ -73,6 +73,6 @@ class InternalMetadataWithArena
 
 }  // namespace internal
 }  // namespace protobuf
-}  // namespace google
 
+}  // namespace google
 #endif  // GOOGLE_PROTOBUF_METADATA_H__

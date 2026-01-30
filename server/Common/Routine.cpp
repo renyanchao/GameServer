@@ -30,38 +30,13 @@ void Routine::Tick(const TimeElpaseInfo& info)
 		}
 		
 	}
+	
 	HeartBeat(info);
 	m_elapsetime = 0;
 	__LEAVE_FUNCTION
 }
 
-//Local Other Routine Push to me
-void Routine::Push(MessagePtr ptr)
-{
-	std::lock_guard<std::mutex> pushlock(m_Lock);
-	m_PushList.push_back(ptr);
-}
-//Self Pop
-MessagePtr Routine::Pop()
-{
-	if (m_PopList.empty() == false)
-	{
-		auto p = m_PopList.front();
-		m_PopList.pop_front();
-		return p;
-	}
-	{
-		std::lock_guard<std::mutex> pushlock(m_Lock);
-		m_PopList.swap(m_PushList);
-	}
-	if (m_PopList.empty() == false)
-	{
-		auto p = m_PopList.front();
-		m_PopList.pop_front();
-		return p;
-	}
-	return nullptr;
-}
+
 
 void Routine::RegisterHandler(MsgID nMsgID, std::function<void(const MessagePtr)> handler)
 {

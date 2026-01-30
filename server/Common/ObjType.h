@@ -11,25 +11,28 @@ public:
 
 	virtual void Tick() {}
 	virtual void DoSomething() {}
-};
-POOL_DEFINE(Obj);
+};POOL_DEFINE(Obj);
 
 
-class ObjPlayer
+class ObjPlayer : public Obj
 {
 public:
 	virtual void Tick() {}
-	virtual void DoSomething() {}
-};
-POOL_DEFINE(ObjPlayer);
+	virtual void DoSomething() 
+	{
+		Log("I am a ObjPlayer.Now Do something");
+	}
+};POOL_DEFINE(ObjPlayer);
 
-class ObjMonster
+class ObjMonster: public Obj
 {
 public:
 	virtual void Tick() {}
-	virtual void DoSomething() {}
-};
-POOL_DEFINE(ObjMonster);
+	virtual void DoSomething() 
+	{
+		Log("I am a ObjMonster.Now Do something");
+	}
+};POOL_DEFINE(ObjMonster);
 
 
 class ScenePlayerManager
@@ -83,30 +86,34 @@ POOL_DEFINE(Message);
 struct Message_1 : public Message
 {
 	MsgID GetID() { return MsgID::MsgID_Message_1; }
+	
 };
 POOL_DEFINE(Message_1);
 
 struct Message_2 : public Message
 {
 	MsgID GetID() { return MsgID::MsgID_Message_2; }
-};
-POOL_DEFINE(Message_2);
+};POOL_DEFINE(Message_2);
 
 struct Message_3 : public Message
 {
 	MsgID GetID() { return MsgID::MsgID_Message_3; }
-};
-POOL_DEFINE(Message_3);
+};POOL_DEFINE(Message_3);
 
 struct Message_log : public Message
 {
 	MsgID GetID() { return MsgID::MsgID_Message_log; }
 	char szLog[1024];
-};
-POOL_DEFINE(Message_log);
+};POOL_DEFINE(Message_log);
 
 struct Message_CreateScene :public Message
 {
-	MsgID GetID() { return MsgID::MsgID_Message_1; }
-};
-POOL_DEFINE(Message_CreateScene);
+	MsgID GetID() { return MsgID::MsgID_Message_createscene; }
+};POOL_DEFINE(Message_CreateScene);
+
+
+struct Message_Transfer : public Message
+{
+	MsgID GetID() { return MsgID::MsgID_Message_Transfer; }
+	ObjPtr m_Ptr = nullptr;
+};POOL_DEFINE(Message_Transfer);
