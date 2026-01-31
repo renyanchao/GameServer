@@ -3,6 +3,13 @@
 #include <stdio.h>
 
 
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+#include <ctime>
+#include <time.h>
+#include <string.h>
+
 void Log(const char* msg, ...)
 {
 	auto msgPtr = POOL_NEW(Message_log);
@@ -20,44 +27,25 @@ void Log(const char* msg, ...)
 #ifdef __LINUX__
 #include <sys/time.h>
 #endif
-uint64_t GetCurrencyTime()
+long long GetCurrencyTime()
 {
-// #ifdef _WIN32
-// 	return GetTickCount();
-// #else
-// 	struct timeval _tstart, _tend;
-// 	struct timezone tz;
-// 	gettimeofday(&_tend, &tz);
-// 	double t1, t2;
-// 	t1 = (double)_tstart.tv_sec * 1000 + (double)_tstart.tv_usec / 1000;
-// 	t2 = (double)_tend.tv_sec * 1000 + (double)_tend.tv_usec / 1000;
-// 	return uint64_t(t2 - t1);
-// #endif
- return std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()
-    ).count();
-}
-
-
-#include <chrono>
-#include <iomanip>
-#include <sstream>
-#include <ctime>
-#include <time.h>
-#include <string.h>
-std::string getCurrentTimestamp() {
-	char buffer[32];
-
-	// // 获取秒级时间和毫秒
-    // struct timeval tv;
-    // gettimeofday(&tv, NULL);
-    // time_t now = tv.tv_sec;
-    time_t now =  std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()
-    ).count() / 1000;
-    // 转换为本地时间
-    struct tm* local_time = localtime(&now);
+	auto now = std::chrono::system_clock::now();
     
+    // 转换为time_t（秒）
+    auto now_seconds = std::chrono::system_clock::to_time_t(now);
+    
+    // 获取毫秒部分
+    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now.time_since_epoch()
+    ) % 1000;
+	return now_seconds * 1000 + milliseconds.count();
+}
+std::string GetTimeStr(long long now)
+{
+	time_t seconds = now / 1000;
+	struct tm* local_time = localtime(&seconds);
+
+	char buffer[32];
     // 格式化输出
     strftime(buffer, sizeof(buffer), "%Y-%m-%d-%H-%M-%S", local_time);
     
@@ -66,6 +54,13 @@ std::string getCurrentTimestamp() {
     snprintf(ms_part, sizeof(ms_part), "-%03d", (int)(now % 1000));
     strncat(buffer, ms_part, sizeof(buffer) - strlen(buffer) - 1);
 	return std::string(buffer);
+}
+
+
+std::string getCurrentTimeStr() {
+	char buffer[32];
+
+    return GetTimeStr(GetCurrencyTime());
 }
 
 
@@ -82,7 +77,7 @@ void __assertex__(const char* filename, int line, const char* func, const char* 
 #ifdef __LINUX__
 	sprintf(szTemp, "[T=%s][%s][%d][%s][%s]\n[%s]\n", getCurrentTimestamp().c_str(), filename, line, func, expr, msg);
 #else
-	sprintf(szTemp, "[T=%s][%s][%d][%s][%s]\n[%s]", getCurrentTimestamp().c_str(), filename, line, func, expr, msg);
+	sprintf(szTemp, "[T=%s][%s][%d][%s][%s]\n[%s]", getCurrentTimeStr().c_str(), filename, line, func, expr, msg);
 #endif
 	//__show__(szTemp);
 	static std::ofstream file(std::string("./assert.log"), std::ios::app | std::ios::binary);

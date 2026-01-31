@@ -1,16 +1,15 @@
 #include"Routine.h"
-#include"ObjType.h"
-#include<iostream>
-#include"ThreadPool.h"
-#include "RoutineManager.h"
 
 Routine::Routine()
 {
-	RegisterHandlerInit();
+	RegisterHandler(MsgID::MsgID_Message_Invalid, std::bind(&Routine::MsgDefaultHandler, this, std::placeholders::_1));
 }
 Routine:: ~Routine()
 {}
-
+int32_t Routine::TickInteral()
+{
+	return 50; //50ms
+}
 
 
 void Routine::Tick(const TimeElpaseInfo& info)
@@ -18,7 +17,6 @@ void Routine::Tick(const TimeElpaseInfo& info)
 	__ENTER_FUNCTION
 	m_elapsetime += info.m_nElpaseTime;
 	if (m_elapsetime < TickInteral())return;
-	/*for (int i = 0; i < 128; i++)*/
 	while(true)
 	{
 		auto msgPtr = Pop();
@@ -36,19 +34,39 @@ void Routine::Tick(const TimeElpaseInfo& info)
 	__LEAVE_FUNCTION
 }
 
-
-
-void Routine::RegisterHandler(MsgID nMsgID, std::function<void(const MessagePtr)> handler)
+void Routine::Push(MessagePtr ptr)
 {
-	m_HandlerList[nMsgID] = handler;
+	std::lock_guard<std::mutex> pushlock(m_Lock);
+	m_PushList.push_back(ptr);
 }
+MessagePtr Routine::Pop()
+{
+	if (m_PopList.empty() == false)
+		{
+			auto p = m_PopList.front();
+			m_PopList.pop_front();
+			return p;
+		}
+		{
+			std::lock_guard<std::mutex> pushlock(m_Lock);
+			m_PopList.swap(m_PushList);
+		}
+		if (m_PopList.empty() == false)
+		{
+			auto p = m_PopList.front();
+			m_PopList.pop_front();
+			return p;
+		}
+		return nullptr;
+}
+
 
 void Routine::MsgDefaultHandler(const MessagePtr& rMsgPtr)
 {
 	std::cout << "MsgDefaultHandler " << std::endl;
 }
-
-void Routine::RegisterHandlerInit()
+void Routine::RegisterHandler(MsgID nMsgID, std::function<void(const MessagePtr)> handler)
 {
-	RegisterHandler(MsgID::MsgID_Message_Invalid, std::bind(&Routine::MsgDefaultHandler, this, std::placeholders::_1));
+	m_HandlerList[nMsgID] = handler;
+	std::cout << "MsgDefaultHandler " << std::endl;
 }

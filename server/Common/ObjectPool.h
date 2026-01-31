@@ -16,8 +16,8 @@ class ObjPoolBase
 {
 public:
 	virtual void printStats(){std::cout<<"ObjPoolBase::printStats()"<<std::endl;};
-	size_t getAvailableCount() const{};
-	size_t getTotalCount() const{};
+	size_t getAvailableCount() const{return 0;};
+	size_t getTotalCount() const{return 0;};
 };
 
 
@@ -70,6 +70,7 @@ public:
 			flag_.store(false, std::memory_order_release);
 			return newObj;
 		}
+		return nullptr;
 	}
 
 

@@ -53,11 +53,12 @@ void Log(const char* msg, ...);
 
 struct TimeElpaseInfo
 {
-	uint64_t m_nCurrencyTime = 0;
-	uint32_t m_nElpaseTime = 0;
+	long long m_nCurrencyTime = 0;
+	long long m_nElpaseTime = 0;
 };
-uint64_t GetCurrencyTime();
-
+long long GetCurrencyTime();
+std::string GetTimeStr(long long time);
+std::string getCurrentTimeStr();
 
 #include <thread>
 #include <mutex>

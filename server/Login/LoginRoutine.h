@@ -12,7 +12,7 @@ public:
 	}
 	void OnInit()
 	{
-		m_NetModuel.Listen();
+		//m_NetModuel.Listen();
 	}
 	virtual void HeartBeat(const TimeElpaseInfo& info);
 

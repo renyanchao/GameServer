@@ -1,7 +1,4 @@
 vs_build
 build
-<<<<<<< HEAD
 build/
-=======
->>>>>>> c6ed33d6b2cf0625a496c93b5e05a868611ea052
-log
+log/

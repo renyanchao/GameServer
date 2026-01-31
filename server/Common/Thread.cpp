@@ -40,7 +40,7 @@ void Thread::Tick()
 
 	m_nCurrencyTime = elpasetimeInfo.m_nCurrencyTime;
 
-	std::list<std::shared_ptr<Routine>> dielist;
+	std::list<std::shared_ptr<Routine>> All_Die_Routine;
 	for (auto& r : m_TickTaskList)
 	{
 		try
@@ -52,10 +52,10 @@ void Thread::Tick()
 		}
 		if (r->GetLeftTime() <= 0)
 		{
-			dielist.push_back(r);
+			All_Die_Routine.push_back(r);
 		}
 	}
-	for (auto& r : dielist)
+	for (auto& r : All_Die_Routine)
 	{
 		RemoveTask(r->GetRoutineID());
 	}

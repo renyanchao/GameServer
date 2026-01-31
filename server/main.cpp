@@ -30,7 +30,7 @@ int main()
 
 
 	g_RoutineManager.RegisterRoutine(std::make_shared<LogRoutine>());
-	g_RoutineManager.RegisterRoutine(std::make_shared<LoginRoutine>());
+	//g_RoutineManager.RegisterRoutine(std::make_shared<LoginRoutine>());
 	g_RoutineManager.RegisterRoutine(std::make_shared<SceneRoutine>());
 
 	//g_RoutineManager.RegisterRoutine(std::make_shared<MailRoutine>());
