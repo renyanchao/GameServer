@@ -4,4 +4,5 @@ SET(CMAKE_CXX_STANDARD 11)
 
 add_definitions("-g")
 
+
 add_subdirectory(server)
