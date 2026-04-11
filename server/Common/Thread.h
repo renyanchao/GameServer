@@ -6,7 +6,7 @@
 #include<mutex>
 #include<list>
 #include "GameDefine.h"
-
+#include<memory>
 class Routine;
 class Thread
 {

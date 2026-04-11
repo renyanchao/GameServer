@@ -7,6 +7,7 @@ void Thread::Start()
 	t = std::move(mt);
 	t.detach();
 }
+
 void Thread::AddTask(std::shared_ptr<Routine> r)
 {
 	std::lock_guard<std::mutex> lock(m_lock);

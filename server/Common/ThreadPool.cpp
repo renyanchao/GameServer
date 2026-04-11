@@ -15,7 +15,10 @@ ThreadPool::ThreadPool()
 		m_allThread.push_back(std::make_shared<Thread>());
 	}
 }
-ThreadPool::~ThreadPool() {}
+ThreadPool::~ThreadPool() 
+{
+	m_allThread.clear();
+}
 
 
 void ThreadPool::Start()

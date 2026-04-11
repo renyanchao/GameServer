@@ -68,5 +68,4 @@ void Routine::MsgDefaultHandler(const MessagePtr& rMsgPtr)
 void Routine::RegisterHandler(MsgID nMsgID, std::function<void(const MessagePtr)> handler)
 {
 	m_HandlerList[nMsgID] = handler;
-	std::cout << "MsgDefaultHandler " << std::endl;
 }

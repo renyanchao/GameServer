@@ -47,11 +47,11 @@ std::string GetTimeStr(long long now)
 
 	char buffer[32];
     // 格式化输出
-    strftime(buffer, sizeof(buffer), "%Y-%m-%d-%H-%M-%S", local_time);
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d-%Hh-%Mm-%Ss", local_time);
     
     // 追加毫秒部分
-    char ms_part[5];
-    snprintf(ms_part, sizeof(ms_part), "-%03d", (int)(now % 1000));
+    char ms_part[50];
+    snprintf(ms_part, sizeof(ms_part), "-%03dms", (int)(now % 1000));
     strncat(buffer, ms_part, sizeof(buffer) - strlen(buffer) - 1);
 	return std::string(buffer);
 }

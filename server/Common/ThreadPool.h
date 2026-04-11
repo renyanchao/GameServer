@@ -5,6 +5,7 @@
 #include<map>
 #include<mutex>
 #include<list>
+#include<memory>
 #include "GameDefine.h"
 
 class Thread;
